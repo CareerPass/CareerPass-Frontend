@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
-import { Mic, Video, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target } from "lucide-react";
+import { Textarea } from "./ui/textarea";
+import { Label } from "./ui/label";
+import { Mic, Video, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Upload } from "lucide-react";
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -13,15 +15,30 @@ export function InterviewAI() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [answers, setAnswers] = useState<string[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [resumeText, setResumeText] = useState("");
+  const [showResumeUpload, setShowResumeUpload] = useState(false);
   const timerRef = useRef<NodeJS.Timeout>();
 
-  const questions = [
+  // 기본 질문들
+  const baseQuestions = [
     "간단한 자기소개를 부탁드립니다.",
     "우리 회사에 지원한 이유는 무엇인가요?",
     "본인의 가장 큰 강점은 무엇이라고 생각하시나요?",
     "팀 프로젝트에서 갈등이 생겼을 때 어떻게 해결하시나요?",
     "5년 후 본인의 모습을 어떻게 그리고 계시나요?"
   ];
+
+  // 자소서 기반 질문들
+  const resumeBasedQuestions = [
+    "자소서에 언급하신 프로젝트 경험에 대해 구체적으로 설명해주세요.",
+    "자소서에서 강조하신 강점을 실제 상황에 어떻게 적용하셨나요?",
+    "자소서에 작성하신 지원동기를 더 구체적으로 말씀해주세요."
+  ];
+
+  // 자소서가 있으면 자소서 기반 질문을 포함
+  const questions = resumeText.trim() 
+    ? [...baseQuestions.slice(0, 3), ...resumeBasedQuestions.slice(0, 2)]
+    : baseQuestions;
 
   const startInterview = () => {
     setCurrentStep('preparation');
@@ -560,6 +577,54 @@ export function InterviewAI() {
             </div>
           </div>
         </CardContent>
+      </Card>
+
+      {/* 자기소개서 업로드 섹션 */}
+      <Card className="border-2 rounded-xl">
+        <CardHeader className="py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              <CardTitle>자기소개서 기반 면접</CardTitle>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setShowResumeUpload(!showResumeUpload)}
+            >
+              {showResumeUpload ? "접기" : "펼치기"}
+            </Button>
+          </div>
+          <CardDescription className="mt-2">
+            자기소개서를 업로드하면 내용을 바탕으로 맞춤형 질문을 받을 수 있습니다
+          </CardDescription>
+        </CardHeader>
+        {showResumeUpload && (
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resume">자기소개서 내용</Label>
+              <Textarea
+                id="resume"
+                placeholder="자기소개서 내용을 입력해주세요..."
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                rows={12}
+                className="resize-none"
+              />
+            </div>
+            {resumeText.trim() && (
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <div className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-green-900">자기소개서가 등록되었습니다</p>
+                    <p className="text-sm text-green-800">면접 시작 시 자기소개서 기반 질문이 포함됩니다.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        )}
       </Card>
 
       {/* 면접 유형 선택 */}
