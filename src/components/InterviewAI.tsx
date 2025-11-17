@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
-import { Mic, Video, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Upload } from "lucide-react";
+import { Input } from "./ui/input"; 
+import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -15,36 +16,82 @@ export function InterviewAI() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [answers, setAnswers] = useState<string[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [resumeText, setResumeText] = useState("");
+  
+  // --- 새로 추가된 상태 변수 ---
+  const [majorInput, setMajorInput] = useState("");
+  const [jobInput, setJobInput] = useState("");
+  const [resumeText, setResumeText] = useState(""); 
+  const [fetchedQuestions, setFetchedQuestions] = useState<string[]>([]); 
+  const [isLoading, setIsLoading] = useState(false); 
+  const [error, setError] = useState<string | null>(null); 
+  // -------------------------
+
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const timerRef = useRef<NodeJS.Timeout>();
 
-  // 기본 질문들
-  const baseQuestions = [
-    "간단한 자기소개를 부탁드립니다.",
-    "우리 회사에 지원한 이유는 무엇인가요?",
-    "본인의 가장 큰 강점은 무엇이라고 생각하시나요?",
-    "팀 프로젝트에서 갈등이 생겼을 때 어떻게 해결하시나요?",
-    "5년 후 본인의 모습을 어떻게 그리고 계시나요?"
-  ];
+  // 질문 리스트: 백엔드에서 받은 질문이 있으면 그것을 사용합니다.
+  const questions = fetchedQuestions;
+  
+  // --- API 호출 함수 (핵심 연결 부분) ---
+  const fetchQuestions = useCallback(async () => {
+    if (!majorInput.trim() || !jobInput.trim()) {
+      setError("학과와 직무 정보를 모두 입력해야 합니다.");
+      return;
+    }
 
-  // 자소서 기반 질문들
-  const resumeBasedQuestions = [
-    "자소서에 언급하신 프로젝트 경험에 대해 구체적으로 설명해주세요.",
-    "자소서에서 강조하신 강점을 실제 상황에 어떻게 적용하셨나요?",
-    "자소서에 작성하신 지원동기를 더 구체적으로 말씀해주세요."
-  ];
+    setIsLoading(true);
+    setError(null);
 
-  // 자소서가 있으면 자소서 기반 질문을 포함
-  const questions = resumeText.trim() 
-    ? [...baseQuestions.slice(0, 3), ...resumeBasedQuestions.slice(0, 2)]
-    : baseQuestions;
+    try {
+      // Flask 백엔드 서버의 API 주소로 요청을 보냅니다.
+      const response = await fetch('http://127.0.0.1:5000/api/questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // 학과, 직무, 자소서 내용을 JSON 형태로 함께 전송합니다.
+        body: JSON.stringify({
+          major: majorInput,
+          job_title: jobInput,
+          cover_letter: resumeText, 
+        }),
+      });
 
-  const startInterview = () => {
-    setCurrentStep('preparation');
-  };
+      const data = await response.json();
 
+      if (!response.ok) {
+        setError(data.error || "면접 질문 생성에 실패했습니다. 서버를 확인해주세요.");
+        setFetchedQuestions([]);
+        return;
+      }
+      
+      if (data.questions && data.questions.length > 0) {
+          setFetchedQuestions(data.questions);
+          setCurrentStep('preparation'); // 성공 시 준비 단계로 이동
+      } else {
+          setError("AI가 질문을 생성하지 못했습니다. 입력 정보를 확인해주세요.");
+          setFetchedQuestions([]);
+      }
+      
+    } catch (e) {
+      setError("서버 연결에 실패했습니다. Flask 서버가 실행 중인지 확인해주세요.");
+      setFetchedQuestions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [majorInput, jobInput, resumeText]);
+  // ----------------------------------------
+  
+  // startInterview 함수를 fetchQuestions로 대체합니다.
+  const startInterview = fetchQuestions;
+  
   const beginInterview = () => {
+    if (questions.length === 0) {
+        setError("질문 목록이 없습니다. 메인 화면으로 돌아가 다시 시작해주세요.");
+        setCurrentStep('main');
+        return;
+    }
+    
     setCurrentStep('interview');
     setCurrentQuestion(0);
     setTimeLeft(60);
@@ -53,9 +100,11 @@ export function InterviewAI() {
 
   const startTimer = () => {
     setIsRecording(true);
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
+          setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]); 
           nextQuestion();
           return 60;
         }
@@ -70,6 +119,10 @@ export function InterviewAI() {
     }
     setIsRecording(false);
     
+    if (currentQuestion < questions.length) {
+        setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
+    }
+     
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setTimeLeft(60);
@@ -80,9 +133,12 @@ export function InterviewAI() {
   };
 
   const finishInterview = () => {
+    if (currentQuestion === questions.length - 1 && answers.length < questions.length) {
+        setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
+    }
+
     setCurrentStep('analysis');
     setAnalysisProgress(0);
-    
     const progressInterval = setInterval(() => {
       setAnalysisProgress(prev => {
         if (prev >= 100) {
@@ -101,7 +157,9 @@ export function InterviewAI() {
     setIsRecording(false);
     setTimeLeft(60);
     setAnswers([]);
+    setFetchedQuestions([]); 
     setAnalysisProgress(0);
+    setError(null);
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -114,8 +172,8 @@ export function InterviewAI() {
       }
     };
   }, []);
-
-  // 면접 준비 화면
+  
+  
   if (currentStep === 'preparation') {
     return (
       <div className="space-y-6">
@@ -125,6 +183,12 @@ export function InterviewAI() {
             면접 준비
           </h1>
           <p className="text-muted-foreground">면접을 시작하기 전에 마이크를 체크해주세요</p>
+          <div className="bg-primary/10 text-primary p-3 rounded-lg border border-primary/30">
+            <h4 className="font-medium">면접 질문 ({questions.length}개)</h4>
+            <ul className="list-disc ml-5 text-sm space-y-1 mt-1">
+                {questions.map((q, i) => <li key={i}>{q}</li>)}
+            </ul>
+          </div>
         </div>
 
         <Card className="border-2 rounded-xl p-8">
@@ -175,7 +239,7 @@ export function InterviewAI() {
     );
   }
 
-  // 면접 진행 화면
+  
   if (currentStep === 'interview') {
     return (
       <div className="space-y-6">
@@ -191,7 +255,8 @@ export function InterviewAI() {
           <CardContent className="space-y-8">
             <div className="text-center space-y-6">
               <div className="relative">
-                <div className={`w-32 h-32 rounded-full mx-auto flex items-center justify-center ${isRecording ? 'bg-red-100 animate-pulse' : 'bg-gray-100'}`}>
+                <div className={`w-32 h-32 rounded-full mx-auto flex items-center justify-center 
+                ${isRecording ? 'bg-red-100 animate-pulse' : 'bg-gray-100'}`}>
                   <Mic className={`w-16 h-16 ${isRecording ? 'text-red-600' : 'text-gray-500'}`} />
                 </div>
                 {isRecording && (
@@ -216,7 +281,7 @@ export function InterviewAI() {
                 </div>
 
                 <div className="w-full bg-muted rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-primary h-2 rounded-full transition-all duration-1000"
                     style={{ width: `${((60 - timeLeft) / 60) * 100}%` }}
                   ></div>
@@ -228,8 +293,8 @@ export function InterviewAI() {
               <Button variant="outline" onClick={nextQuestion}>
                 다음 질문
               </Button>
-              <Button variant="destructive" onClick={resetInterview}>
-                면접 종료
+              <Button variant="destructive" onClick={finishInterview}> 
+                면접 종료 
               </Button>
             </div>
           </CardContent>
@@ -238,7 +303,7 @@ export function InterviewAI() {
     );
   }
 
-  // AI 분석 중 화면
+  
   if (currentStep === 'analysis') {
     return (
       <div className="space-y-6">
@@ -259,7 +324,7 @@ export function InterviewAI() {
             <div className="space-y-4">
               <h3 className="font-medium">AI가 면접 답변을 분석하고 있습니다</h3>
               <p className="text-muted-foreground">음성, 내용, 태도를 종합적으로 분석하여 맞춤형 피드백을 준비중입니다</p>
-              
+               
               <div className="space-y-2">
                 <Progress value={analysisProgress} className="w-full" />
                 <p className="text-sm text-muted-foreground">{analysisProgress}% 완료</p>
@@ -286,7 +351,7 @@ export function InterviewAI() {
     );
   }
 
-  // 결과 화면
+  
   if (currentStep === 'result') {
     return (
       <div className="space-y-6">
@@ -298,7 +363,7 @@ export function InterviewAI() {
           <p className="text-muted-foreground">AI 분석 결과를 확인해보세요</p>
         </div>
 
-        {/* 상단 요약 카드 (3개 가로 배치) */}
+        
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-2 rounded-xl">
             <CardContent className="text-center p-6">
@@ -318,7 +383,7 @@ export function InterviewAI() {
                 <MessageCircle className="w-6 h-6 text-green-600" />
               </div>
               <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">5개</p>
+                <p className="text-2xl font-bold text-primary">{questions.length}개</p> 
                 <p className="text-muted-foreground">총 질문 개수</p>
               </div>
             </CardContent>
@@ -337,7 +402,7 @@ export function InterviewAI() {
           </Card>
         </div>
 
-        {/* 중앙 AI 결과 카드 */}
+        
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -353,7 +418,7 @@ export function InterviewAI() {
                 <p className="text-green-800">지원한 분야와 관련된 기술 스택에 대한 이해를 보여주세요.</p>
               </div>
             </div>
-            
+             
             <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
               <span className="text-yellow-600">⚠️</span>
               <div>
@@ -361,7 +426,7 @@ export function InterviewAI() {
                 <p className="text-yellow-800">구체적인 경험을 들어 해결 과정을 설명하면 더 좋습니다.</p>
               </div>
             </div>
-            
+        
             <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <span className="text-blue-600">🤝</span>
               <div>
@@ -369,7 +434,7 @@ export function InterviewAI() {
                 <p className="text-blue-800">팀 프로젝트 경험과 소통 방식을 강조하세요.</p>
               </div>
             </div>
-            
+             
             <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
               <span className="text-purple-600">🚀</span>
               <div>
@@ -380,7 +445,7 @@ export function InterviewAI() {
           </CardContent>
         </Card>
 
-        {/* 질문별 리뷰 리스트 */}
+        
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle>질문별 상세 결과</CardTitle>
@@ -398,14 +463,14 @@ export function InterviewAI() {
                 </div>
                 <p className="text-muted-foreground">{question}</p>
                 <div className="bg-muted/50 p-3 rounded border-l-4 border-muted-foreground/20">
-                  <p className="text-muted-foreground italic">답변 내용: —</p>
+                  <p className="text-muted-foreground italic">답변 내용: {answers[index] || "답변 내용이 없습니다."}</p>
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        {/* AI 종합 피드백 요약 */}
+        
         <Card className="border-2 rounded-xl bg-gradient-to-r from-primary/5 to-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -425,7 +490,7 @@ export function InterviewAI() {
                 <div className="space-y-2">
                   <p className="text-primary font-medium">📋 전체적인 평가</p>
                   <p className="text-gray-700 leading-relaxed">
-                    전반적으로 면접에 임하는 자세가 좋고, 기술적 지식도 충분히 갖추고 계신 것 같습니다. 
+                    전반적으로 면접에 임하는 자세가 좋고, 기술적 지식도 충분히 갖추고 계신 것 같습니다.
                     특히 자신의 경험을 구체적인 사례로 설명하는 부분이 인상적이었습니다.
                   </p>
                 </div>
@@ -440,7 +505,7 @@ export function InterviewAI() {
                 <div className="space-y-2">
                   <p className="text-green-700 font-medium">💪 주요 강점</p>
                   <p className="text-gray-700 leading-relaxed">
-                    문제 해결 과정을 체계적으로 설명하는 능력과 팀워크에 대한 이해도가 뛰어납니다. 
+                    문제 해결 과정을 체계적으로 설명하는 능력과 팀워크에 대한 이해도가 뛰어납니다.
                     또한 질문의 의도를 정확히 파악하고 적절한 답변을 제시했습니다.
                   </p>
                 </div>
@@ -455,7 +520,7 @@ export function InterviewAI() {
                 <div className="space-y-2">
                   <p className="text-blue-700 font-medium">🎯 개선 포인트</p>
                   <p className="text-gray-700 leading-relaxed">
-                    답변 시간을 조금 더 여유있게 활용하시고, 회사에 대한 사전 조사 내용을 더 구체적으로 
+                    답변 시간을 조금 더 여유있게 활용하시고, 회사에 대한 사전 조사 내용을 더 구체적으로  
                     언급하면 지원 의지를 더 강하게 어필할 수 있을 것 같습니다.
                   </p>
                 </div>
@@ -470,7 +535,7 @@ export function InterviewAI() {
                 <div className="space-y-2">
                   <p className="text-purple-700 font-medium">🚀 앞으로의 방향</p>
                   <p className="text-gray-700 leading-relaxed">
-                    현재 수준에서 실제 면접에 충분히 대응할 수 있을 것으로 보입니다. 
+                    현재 수준에서 실제 면접에 충분히 대응할 수 있을 것으로 보입니다.
                     다양한 상황별 질문에 대한 연습을 더 해보시면 자신감도 더욱 향상될 것입니다.
                   </p>
                 </div>
@@ -479,7 +544,7 @@ export function InterviewAI() {
           </CardContent>
         </Card>
 
-        {/* 하단 액션 버튼 */}
+        
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <Button size="lg" className="px-8" onClick={resetInterview}>
             새 면접 시작
@@ -495,7 +560,7 @@ export function InterviewAI() {
     );
   }
 
-  // 메인 화면 (기존 코드)
+  
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -503,7 +568,7 @@ export function InterviewAI() {
         <p className="text-muted-foreground">실전 같은 모의면접, AI가 함께합니다</p>
       </div>
 
-      {/* 기능 소개 카드 */}
+      
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
@@ -548,27 +613,68 @@ export function InterviewAI() {
         </Card>
       </div>
 
-      {/* 모의면접 시작 */}
+      
       <Card className="p-8">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
             <Mic className="h-8 w-8 text-red-600" />
           </div>
-          <CardTitle className="text-2xl">AI 모의면접을 시작해보세요</CardTitle>
+          <CardTitle className="text-2xl">면접 정보를 입력하고 시작해보세요</CardTitle>
           <CardDescription className="text-lg">
-            AI 면접관이 실시간으로 질문하고 답변을 분석해 드립니다
+            학과, 직무 정보를 바탕으로 맞춤형 면접 질문이 생성됩니다.
           </CardDescription>
+          
+          
+          {error && (
+             <div className="bg-red-100 text-red-700 p-3 rounded-lg border border-red-300 text-sm font-medium">
+               ⚠️ {error}
+             </div>
+          )}
+
         </CardHeader>
         <CardContent className="space-y-6">
+            
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="major">학과 정보 (예: 컴퓨터공학과)</Label>
+                    <Input 
+                        id="major" 
+                        placeholder="학과를 입력해주세요" 
+                        value={majorInput}
+                        onChange={(e) => setMajorInput(e.target.value)}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="job">지원 직무 (예: 프론트엔드 개발자)</Label>
+                    <Input 
+                        id="job" 
+                        placeholder="직무를 입력해주세요" 
+                        value={jobInput}
+                        onChange={(e) => setJobInput(e.target.value)}
+                    />
+                </div>
+            </div>
+            
+
+
           <div className="bg-gray-100 rounded-lg p-8 text-center">
             <div className="w-24 h-24 bg-gray-300 rounded-full mx-auto mb-4 flex items-center justify-center">
               <Mic className="h-12 w-12 text-gray-500" />
             </div>
             <p className="text-gray-600 mb-4">마이크 준비가 완료되면 면접을 시작할 수 있습니다</p>
             <div className="flex justify-center space-x-4">
-              <Button size="lg" className="px-8" onClick={startInterview}>
-                <Play className="mr-2 h-4 w-4" />
-                면접 시작
+              <Button 
+                size="lg" 
+                className="px-8" 
+                onClick={startInterview}
+                disabled={isLoading || !majorInput.trim() || !jobInput.trim()} 
+              >
+                {isLoading ? (
+                    <><Loader className="mr-2 h-4 w-4 animate-spin" /> 질문 생성 중...</>
+                ) : (
+                    <><Play className="mr-2 h-4 w-4" /> 면접 시작</>
+                )}
               </Button>
               <Button variant="outline" size="lg" className="px-8">
                 <Settings className="mr-2 h-4 w-4" />
@@ -579,7 +685,7 @@ export function InterviewAI() {
         </CardContent>
       </Card>
 
-      {/* 자기소개서 업로드 섹션 */}
+      
       <Card className="border-2 rounded-xl">
         <CardHeader className="py-6">
           <div className="flex items-center justify-between">
@@ -587,8 +693,8 @@ export function InterviewAI() {
               <FileText className="w-5 h-5 text-primary" />
               <CardTitle>자기소개서 기반 면접</CardTitle>
             </div>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={() => setShowResumeUpload(!showResumeUpload)}
             >
@@ -627,7 +733,7 @@ export function InterviewAI() {
         )}
       </Card>
 
-      {/* 면접 유형 선택 */}
+      
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardHeader>
@@ -668,7 +774,7 @@ export function InterviewAI() {
         </Card>
       </div>
 
-      {/* 최근 면접 기록 */}
+      
       <Card>
         <CardHeader>
           <CardTitle>최근 면접 기록</CardTitle>
