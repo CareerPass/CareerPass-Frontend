@@ -6,7 +6,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input"; 
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
-import axios from 'axios';
+
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -45,7 +45,7 @@ export function InterviewAI() {
 
     try {
       // Flask 백엔드 서버의 API 주소로 요청을 보냅니다.
-      const response = await fetch('http://127.0.0.1:5000/api/questions', {
+      const response = await fetch('http://13.125.192.47:8090/api/feedback/imtroduction/{introductionID}', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
