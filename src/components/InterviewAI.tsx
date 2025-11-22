@@ -6,6 +6,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input"; 
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
+import axios from 'axios';
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -122,7 +123,7 @@ export function InterviewAI() {
     if (currentQuestion < questions.length) {
         setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
     }
-     
+
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setTimeLeft(60);
