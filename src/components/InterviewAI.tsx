@@ -45,7 +45,7 @@ export function InterviewAI() {
 
     try {
       // Flask 백엔드 서버의 API 주소로 요청을 보냅니다.
-      const response = await fetch('http://13.125.192.47:8090/api/feedback/imtroduction/{introductionID}', {
+      const response = await fetch('http://13.125.192.47:8090/api/feedback/interview/{interviewID}', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
