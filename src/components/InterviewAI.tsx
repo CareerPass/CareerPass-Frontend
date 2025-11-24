@@ -4,9 +4,13 @@ import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
-import { Input } from "./ui/input"; 
+import { Input } from "./ui/input"; // Input은 다른 곳에서 사용되므로 유지
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
 
+// --- 선택 옵션 정의 ---
+const MAJOR_OPTIONS = ["컴퓨터공학과", "전자공학과", "경영학과", "디자인학과", "기타"];
+const JOB_OPTIONS = ["프론트엔드 개발자", "백엔드 개발자", "데이터 분석가", "마케터", "UX/UI 디자이너", "기타"];
+// --------------------
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -17,8 +21,8 @@ export function InterviewAI() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [answers, setAnswers] = useState<string[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState(0);
-  
-  // --- 새로 추가된 상태 변수 ---
+    
+  // --- 상태 변수 ---
   const [majorInput, setMajorInput] = useState("");
   const [jobInput, setJobInput] = useState("");
   const [resumeText, setResumeText] = useState(""); 
@@ -30,13 +34,13 @@ export function InterviewAI() {
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const timerRef = useRef<NodeJS.Timeout>();
 
-  // 질문 리스트: 백엔드에서 받은 질문이 있으면 그것을 사용합니다.
   const questions = fetchedQuestions;
-  
+    
   // --- API 호출 함수 (핵심 연결 부분) ---
   const fetchQuestions = useCallback(async () => {
+    // Input 대신 Select로 변경되었으므로, 초기 placeholder 값 ""이 아닌지 확인
     if (!majorInput.trim() || !jobInput.trim()) {
-      setError("학과와 직무 정보를 모두 입력해야 합니다.");
+      setError("학과와 직무 정보를 모두 선택해야 합니다.");
       return;
     }
 
@@ -50,7 +54,6 @@ export function InterviewAI() {
         headers: {
           'Content-Type': 'application/json',
         },
-        // 학과, 직무, 자소서 내용을 JSON 형태로 함께 전송합니다.
         body: JSON.stringify({
           major: majorInput,
           job_title: jobInput,
@@ -65,7 +68,7 @@ export function InterviewAI() {
         setFetchedQuestions([]);
         return;
       }
-      
+        
       if (data.questions && data.questions.length > 0) {
           setFetchedQuestions(data.questions);
           setCurrentStep('preparation'); // 성공 시 준비 단계로 이동
@@ -73,7 +76,7 @@ export function InterviewAI() {
           setError("AI가 질문을 생성하지 못했습니다. 입력 정보를 확인해주세요.");
           setFetchedQuestions([]);
       }
-      
+        
     } catch (e) {
       setError("서버 연결에 실패했습니다. Flask 서버가 실행 중인지 확인해주세요.");
       setFetchedQuestions([]);
@@ -82,10 +85,10 @@ export function InterviewAI() {
     }
   }, [majorInput, jobInput, resumeText]);
   // ----------------------------------------
-  
+    
   // startInterview 함수를 fetchQuestions로 대체합니다.
-  const startInterview = fetchQuestions;
-  
+  const startInterview = fetchQuestions; 
+
   const beginInterview = () => {
     if (questions.length === 0) {
         setError("질문 목록이 없습니다. 메인 화면으로 돌아가 다시 시작해주세요.");
@@ -120,20 +123,23 @@ export function InterviewAI() {
     }
     setIsRecording(false);
     
-    if (currentQuestion < questions.length) {
+    // 답변 저장 (currentQuestion이 questions.length보다 작을 때만)
+    if (currentQuestion < questions.length && answers.length === currentQuestion) {
         setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
     }
 
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setTimeLeft(60);
-      setTimeout(() => startTimer(), 2000);
+      // 다음 질문까지 2초 대기
+      setTimeout(() => startTimer(), 2000); 
     } else {
       finishInterview();
     }
   };
 
   const finishInterview = () => {
+    // 마지막 질문의 답변을 확실히 저장
     if (currentQuestion === questions.length - 1 && answers.length < questions.length) {
         setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
     }
@@ -165,7 +171,8 @@ export function InterviewAI() {
       clearInterval(timerRef.current);
     }
   };
-
+    
+  // 컴포넌트 언마운트 시 타이머 정리
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -173,8 +180,9 @@ export function InterviewAI() {
       }
     };
   }, []);
-  
-  
+    
+  // --- 렌더링 함수 ---
+    
   if (currentStep === 'preparation') {
     return (
       <div className="space-y-6">
@@ -240,7 +248,7 @@ export function InterviewAI() {
     );
   }
 
-  
+    
   if (currentStep === 'interview') {
     return (
       <div className="space-y-6">
@@ -304,7 +312,7 @@ export function InterviewAI() {
     );
   }
 
-  
+    
   if (currentStep === 'analysis') {
     return (
       <div className="space-y-6">
@@ -325,7 +333,7 @@ export function InterviewAI() {
             <div className="space-y-4">
               <h3 className="font-medium">AI가 면접 답변을 분석하고 있습니다</h3>
               <p className="text-muted-foreground">음성, 내용, 태도를 종합적으로 분석하여 맞춤형 피드백을 준비중입니다</p>
-               
+                
               <div className="space-y-2">
                 <Progress value={analysisProgress} className="w-full" />
                 <p className="text-sm text-muted-foreground">{analysisProgress}% 완료</p>
@@ -352,7 +360,7 @@ export function InterviewAI() {
     );
   }
 
-  
+    
   if (currentStep === 'result') {
     return (
       <div className="space-y-6">
@@ -419,7 +427,7 @@ export function InterviewAI() {
                 <p className="text-green-800">지원한 분야와 관련된 기술 스택에 대한 이해를 보여주세요.</p>
               </div>
             </div>
-             
+              
             <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
               <span className="text-yellow-600">⚠️</span>
               <div>
@@ -435,7 +443,7 @@ export function InterviewAI() {
                 <p className="text-blue-800">팀 프로젝트 경험과 소통 방식을 강조하세요.</p>
               </div>
             </div>
-             
+              
             <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
               <span className="text-purple-600">🚀</span>
               <div>
@@ -561,7 +569,8 @@ export function InterviewAI() {
     );
   }
 
-  
+    
+  // --- Main 화면 렌더링 (Select 태그 적용) ---
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -624,40 +633,50 @@ export function InterviewAI() {
           <CardDescription className="text-lg">
             학과, 직무 정보를 바탕으로 맞춤형 면접 질문이 생성됩니다.
           </CardDescription>
-          
-          
+            
           {error && (
-             <div className="bg-red-100 text-red-700 p-3 rounded-lg border border-red-300 text-sm font-medium">
-               ⚠️ {error}
-             </div>
+              <div className="bg-red-100 text-red-700 p-3 rounded-lg border border-red-300 text-sm font-medium">
+                ⚠️ {error}
+              </div>
           )}
 
         </CardHeader>
         <CardContent className="space-y-6">
             
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="major">학과 정보 (예: 컴퓨터공학과)</Label>
-                    <Input 
-                        id="major" 
-                        placeholder="학과를 입력해주세요" 
-                        value={majorInput}
-                        onChange={(e) => setMajorInput(e.target.value)}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="job">지원 직무 (예: 프론트엔드 개발자)</Label>
-                    <Input 
-                        id="job" 
-                        placeholder="직무를 입력해주세요" 
-                        value={jobInput}
-                        onChange={(e) => setJobInput(e.target.value)}
-                    />
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 🚨 학과 Input을 Select로 수정 */}
+            <div className="space-y-2">
+              <Label htmlFor="major">학과 정보</Label>
+              <select
+                id="major"
+                value={majorInput}
+                onChange={(e) => setMajorInput(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>학과를 선택하세요</option>
+                {MAJOR_OPTIONS.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
             </div>
             
-
+            {/* 🚨 직무 Input을 Select로 수정 */}
+            <div className="space-y-2">
+              <Label htmlFor="job">지원 직무</Label>
+              <select
+                id="job"
+                value={jobInput}
+                onChange={(e) => setJobInput(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>직무를 선택하세요</option>
+                {JOB_OPTIONS.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+            
 
           <div className="bg-gray-100 rounded-lg p-8 text-center">
             <div className="w-24 h-24 bg-gray-300 rounded-full mx-auto mb-4 flex items-center justify-center">
