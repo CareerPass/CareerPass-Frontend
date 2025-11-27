@@ -21,9 +21,10 @@ interface CareerPackAppProps {
   onPageChange: (page: PageType) => void;
   onLogout: () => void;
   onProfileComplete?: () => void;
+  api: any;
 }
 
-export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileComplete }: CareerPackAppProps) {
+export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileComplete, api }: CareerPackAppProps) {
   const [currentSection, setCurrentSection] = useState("dashboard");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedJob, setSelectedJob] = useState("");

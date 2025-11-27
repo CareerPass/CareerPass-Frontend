@@ -1,5 +1,10 @@
 const BASE_URL = 'http://13.125.192.47:8090';
 
+export const api = {
+    getUsers: () =>
+        fetch(`${BASE_URL}/api/users`).then(res => res.json()),
+};
+
 //get
     fetch('http://13.125.192.47:8090/api/users')
     .then(response => response.json())
