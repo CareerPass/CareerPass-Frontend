@@ -1,13 +1,12 @@
 import svgPaths from "./svg-3ql98fjrhy";
-
-const img = new URL("../assets/4d1244c8cd23f93c1a9d40fe9c4df8756afecddf.png", import.meta.url).href;
-const img1 = new URL("../assets/ea411b67d9d8f4940503f315d1f62c9645638951.png", import.meta.url).href;
-const img2 = new URL("../assets/e8ecf5fd235a44ec8892682cb666f9c6ef930952.png", import.meta.url).href;
-const imgJobInterview1 = new URL("../assets/a760a2b4777fbcfa73298650beeea2b5f7b56133.png", import.meta.url).href;
-const imgDocuments1 = new URL("../assets/0e09dacb4105c92c909cccbe5e62b5a7a22cbfbf.png", import.meta.url).href;
-const imgStudentCard1 = new URL("../assets/11876833bc44e79bf713be48e147b2f818473679.png", import.meta.url).href;
-const img3 = new URL("../assets/b75831d3b3e1189dc1796e5c79e974017e011974.png", import.meta.url).href;
-const img4 = new URL("../assets/83510238e736cd0a50e47278737c5f6a27f22463.png", import.meta.url).href;
+import img from "figma:asset/4d1244c8cd23f93c1a9d40fe9c4df8756afecddf.png";
+import img1 from "figma:asset/ea411b67d9d8f4940503f315d1f62c9645638951.png";
+import img2 from "figma:asset/e8ecf5fd235a44ec8892682cb666f9c6ef930952.png";
+import imgJobInterview1 from "figma:asset/a760a2b4777fbcfa73298650beeea2b5f7b56133.png";
+import imgDocuments1 from "figma:asset/0e09dacb4105c92c909cccbe5e62b5a7a22cbfbf.png";
+import imgStudentCard1 from "figma:asset/11876833bc44e79bf713be48e147b2f818473679.png";
+import img3 from "figma:asset/b75831d3b3e1189dc1796e5c79e974017e011974.png";
+import img4 from "figma:asset/83510238e736cd0a50e47278737c5f6a27f22463.png";
 
 function Component5() {
   return (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -16,18 +16,59 @@ import {
   Edit2,
   Save
 } from "lucide-react";
+import { getUserById, updateUserProfile } from "../api";
 
 export function ProfileSection() {
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState({
-    name: "김학생",
-    email: "student@university.ac.kr",
-    studentId: "2022123456",
-    department: "컴퓨터공학과",
-    currentYear: "2학년",
-    targetJob: "백엔드 개발자",
-    interests: ["웹 개발", "데이터베이스", "클라우드"]
+    id: null as number | null,
+    name: "",
+    email: "",
+    studentId: "",
+    department: "",
+    currentYear: "",
+    targetJob: "",
+    interests: [] as string[]
   });
+
+  // 컴포넌트 마운트 시 사용자 정보 조회
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        setError("로그인이 필요합니다.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        // GET: 특정 사용자 조회
+        const userData = await getUserById(parseInt(userId));
+        
+        setProfile({
+          id: userData.id,
+          name: userData.name || "",
+          email: userData.email || "",
+          studentId: userData.studentId || "",
+          department: userData.department || "",
+          currentYear: userData.currentYear || "",
+          targetJob: userData.targetJob || "",
+          interests: userData.interests || []
+        });
+      } catch (err: any) {
+        console.error("사용자 정보 조회 실패:", err);
+        setError(err.message || "사용자 정보를 불러오는데 실패했습니다.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
 
   const achievements = [
     { title: "정보처리산업기사", date: "2024.12", type: "자격증" },
@@ -36,10 +77,46 @@ export function ProfileSection() {
     { title: "객체지향프로그래밍 A", date: "2024.06", type: "교과목" }
   ];
 
-  const handleSave = () => {
-    setIsEditing(false);
-    // 여기에 프로필 저장 로직 추가
+  const handleSave = async () => {
+    const userId = profile.id || localStorage.getItem('userId');
+    if (!userId) {
+      setError("사용자 ID가 없습니다.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+      
+      // PATCH: 사용자 프로필 업데이트
+      await updateUserProfile(parseInt(userId.toString()), {
+        name: profile.name,
+        email: profile.email,
+        studentId: profile.studentId,
+        department: profile.department,
+        currentYear: profile.currentYear,
+        targetJob: profile.targetJob,
+        interests: profile.interests
+      });
+      
+      setIsEditing(false);
+    } catch (err: any) {
+      console.error("프로필 저장 실패:", err);
+      setError(err.message || "프로필 저장에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">사용자 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -50,6 +127,12 @@ export function ProfileSection() {
           개인 정보와 학습 현황을 관리하세요
         </p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Card */}
@@ -64,11 +147,12 @@ export function ProfileSection() {
                 variant={isEditing ? "default" : "outline"}
                 size="sm"
                 onClick={isEditing ? handleSave : () => setIsEditing(true)}
+                disabled={isSaving}
               >
                 {isEditing ? (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    저장
+                    {isSaving ? "저장 중..." : "저장"}
                   </>
                 ) : (
                   <>

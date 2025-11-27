@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -564,7 +564,10 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
                 />
               </div>
               <div className="flex gap-2 pt-4">
-                <Button onClick={handleSaveProfile} className="flex-1">
+                <Button 
+                  onClick={handleSaveProfile} 
+                  className="flex-1"
+                >
                   저장
                 </Button>
                 <Button 
