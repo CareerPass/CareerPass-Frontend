@@ -1,7 +1,16 @@
 const BASE_URL = 'http://13.125.192.47:8090';
 
 //get
-fetch('http://13.125.192.47:8090/api/users')
+    fetch('http://13.125.192.47:8090/api/users')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(errer => {
+        console.error('Error:', errer);
+    });
+
+fetch('http://13.125.192.47:8090/api/users/{id}')
     .then(response => response.json())
     .then(data => {
         console.log(data);
@@ -122,3 +131,19 @@ fetch('http://13.125.192.47:8090/api/feedback', {
         submissionTime: "2025-11-27T01:14:49.145Z"
     }),
 });
+
+//fetch
+fetch('http://13.125.192.47:8090/api/users/{id}/profile', {
+    method: 'PATCH',
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+        nickname: "string",
+        major: "string",
+        targetJob: "string"
+    })
+})
+    .then(res => res.json())
+    .then(data => console.log(data))
+    .catch(err => console.error(err));
