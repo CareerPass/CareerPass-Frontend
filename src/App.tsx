@@ -4,6 +4,7 @@ import { CareerPackApp } from "./components/CareerPackApp";
 import { LoginPage } from "./components/LoginPage";
 import { LoginRequired } from "./components/LoginRequired";
 import { ProfileRequired } from "./components/ProfileRequired";
+import { api } from "./api";
 
 type PageType = 'main' | 'roadmap' | 'resume' | 'interview' | 'profile';
 
@@ -134,6 +135,7 @@ export default function App() {
       onPageChange={handlePageChange} 
       onLogout={handleLogout}
       onProfileComplete={handleProfileComplete}
+      api={api}
     />
   );
 }

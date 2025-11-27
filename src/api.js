@@ -1,6 +1,15 @@
 const BASE_URL = 'http://13.125.192.47:8090';
 
 //get
+fetch('http://13.125.192.47:8090/api/users')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(errer => {
+        console.error('Error:', errer);
+    });
+    
 fetch('http://13.125.192.47:8090/api/interview/voice/health')
     .then(response => response.json())
     .then(data => {
@@ -38,6 +47,19 @@ fetch('http://13.125.192.47:8090/api/feedback/interview/{interviewId}')
     });
 
 //post
+fetch('http://13.125.192.47:8090/api/users', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        nickname: "string",
+        email: "string",
+        major: "string",
+        targetJob: "string"
+    }),
+});
+
 fetch('http://13.125.192.47:8090/api/interview/voice/analyze', {
     method: 'POST',
     headers: {
