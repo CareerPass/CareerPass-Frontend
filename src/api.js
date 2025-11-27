@@ -1,44 +1,102 @@
-// fetch는 기본 브라우저 API이므로 별도의 import가 필요 없습니다.
-const API_BASE_URL = process.env.REACT_APP_API_URL;
+const BASE_URL = 'http://13.125.192.47:8090';
 
-// 기본 fetch 래퍼 함수
-const fetchApi = async (endpoint, options = {}) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
+//get
+fetch('http://13.125.192.47:8090/api/interview/voice/health')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(errer => {
+        console.error('Error:', errer);
     });
 
-    // 4xx, 5xx 에러 처리
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        // 사용자 정의 에러 객체를 throw
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-    }
+fetch('http://13.125.192.47:8090/api/feedback/{id}')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(errer => {
+        console.error('Error:', errer);
+    });
 
-    // 응답 본문이 없을 경우 처리 (e.g. 204 No Content)
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-        return response.json();
-    }
-    return response.text();
-};
+fetch('http://13.125.192.47:8090/api/feedback/introduction/{introductionId}')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(errer => {
+        console.error('Error:', errer);
+    });
 
+fetch('http://13.125.192.47:8090/api/feedback/interview/{interviewId}')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+    })
+    .catch(errer => {
+        console.error('Error:', errer);
+    });
 
-// 사용자
-export const getUsers = () => fetchApi('/api/users');
-
-export const createUser = (data) => fetchApi('/api/users', {
+//post
+fetch('http://13.125.192.47:8090/api/interview/voice/analyze', {
     method: 'POST',
-    body: JSON.stringify(data),
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        interviewId: 1,
+        questionId: "q-1",
+        userId: 10,
+        answerText: "string"
+    })
+})
+
+fetch('http://13.125.192.47:8090/api/interview/question-gen', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        userId: 10,
+        coverLetter: "저는 백엔드 개발자로 성장하기 위해..."
+    }),
 });
 
-export const updateUser = (id, data) => fetchApi(`/api/users/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
+fetch('http://13.125.192.47:8090/api/interview/audio', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        userId: "integer",
+        jobApplied: "string"
+    }),
 });
 
+fetch('http://13.125.192.47:8090/api/interview-learning', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        userId: 0,
+        questionId: 0,
+        audioUrl: "string",
+        answerText: "string",
+        analysisResult: "string",
+        durationMs: 0
+    }),
+});
 
-export default fetchApi; // 기본 래퍼 함수를 export
+fetch('http://13.125.192.47:8090/api/feedback', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        userId: 0,
+        jobApplied: "string",
+        introText: "string",
+        submissionTime: "2025-11-27T01:14:49.145Z"
+    }),
+});
