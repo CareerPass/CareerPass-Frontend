@@ -6,11 +6,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input"; // Input은 다른 곳에서 사용되므로 유지
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
-
-// --- 선택 옵션 정의 ---
-const MAJOR_OPTIONS = ["컴퓨터공학과", "전자공학과", "경영학과", "디자인학과", "기타"];
-const JOB_OPTIONS = ["프론트엔드 개발자", "백엔드 개발자", "데이터 분석가", "마케터", "UX/UI 디자이너", "기타"];
-// --------------------
+import { MAJOR_OPTIONS, getJobOptionsByMajor } from "../data/departmentJobData";
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -30,6 +26,15 @@ export function InterviewAI() {
   const [isLoading, setIsLoading] = useState(false); 
   const [error, setError] = useState<string | null>(null); 
   // -------------------------
+
+  // 학과 선택에 따른 직무 옵션 동적 업데이트
+  const jobOptions = majorInput ? getJobOptionsByMajor(majorInput) : [];
+
+  // 학과 변경 시 직무 초기화
+  const handleMajorChange = (value: string) => {
+    setMajorInput(value);
+    setJobInput("");
+  };
 
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const timerRef = useRef<NodeJS.Timeout>();
@@ -650,7 +655,7 @@ export function InterviewAI() {
               <select
                 id="major"
                 value={majorInput}
-                onChange={(e) => setMajorInput(e.target.value)}
+                onChange={(e) => handleMajorChange(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="" disabled>학과를 선택하세요</option>
@@ -667,10 +672,11 @@ export function InterviewAI() {
                 id="job"
                 value={jobInput}
                 onChange={(e) => setJobInput(e.target.value)}
+                disabled={!majorInput || jobOptions.length === 0}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="" disabled>직무를 선택하세요</option>
-                {JOB_OPTIONS.map(option => (
+                {jobOptions.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
