@@ -325,6 +325,79 @@ export const createIntroductionLearning = async (requestBody) => {
     }
 };
 
+// 로그인 또는 자동가입 API
+// POST: http://13.125.192.47:8090/api/users/login - 이메일로 로그인 또는 자동가입
+// 요청 바디(JSON): { email: string }
+// 응답: 사용자 프로필 객체
+export const loginOrCreateUser = async (email) => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/users/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email
+            }),
+        });
+
+        if (!response.ok) {
+            const msg = await response.text().catch(() => '');
+            throw new Error(`login failed: ${msg}`);
+        }
+
+        const profile = await response.json();
+        console.log('POST /api/users/login 응답:', profile);
+        return profile;
+    } catch (error) {
+        console.error('loginOrCreateUser 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            email: email
+        });
+        throw error;
+    }
+};
+
+// 이메일만으로 사용자 생성 API
+// POST: http://13.125.192.47:8090/api/users - 이메일만으로 사용자 생성
+// 요청 바디(JSON): { email: string, nickname: null, major: null, targetJob: null }
+// 응답: 사용자 객체
+export const createUserWithEmail = async (email) => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email,          // ✅ 이메일만 사용
+                nickname: null,         // 백엔드에서 무시하거나 기본값 처리
+                major: null,
+                targetJob: null,
+            }),
+        });
+
+        // 이미 가입한 유저면 409 가능
+        if (!response.ok) {
+            throw new Error(`HTTP_${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/users (email only) 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('createUserWithEmail 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            email: email
+        });
+        throw error;
+    }
+};
+
 // 사용자 인증 API
 // GET: {API_BASE_URL}/me - 현재 사용자 정보 조회 (Swagger 기준)
 // 요청 파라미터: 없음
@@ -332,34 +405,21 @@ export const createIntroductionLearning = async (requestBody) => {
 // 응답: 사용자 정보 객체
 export const getMe = async () => {
     try {
-        // CORS 문제 해결을 위해 credentials 옵션 제거 (백엔드 CORS 설정이 필요할 수 있음)
         const response = await fetch(`${API_BASE_URL}/me`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            // credentials: 'include' 제거 - CORS 에러 방지
         });
 
         if (!response.ok) {
-            // response.ok가 아닐 경우 콘솔에 status와 message 출력
-            const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
-            console.error('API 오류:', {
-                status: response.status,
-                statusText: response.statusText,
-                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
-                errorData: errorJson
-            });
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+            throw new Error(`HTTP_${response.status}`);
         }
 
-        // 정상인 경우 JSON 데이터 console.log
         const data = await response.json();
         console.log('GET /api/me 응답:', data);
         return data;
     } catch (error) {
-        // 오류 발생 시 상세 오류를 알 수 있도록 출력
         console.error('getMe 오류 상세:', {
             message: error.message,
             stack: error.stack,
@@ -596,6 +656,452 @@ export const getHealth = async () => {
             message: error.message,
             stack: error.stack,
             error: error
+        });
+        throw error;
+    }
+};
+
+// AI 컨트롤러 API
+// POST: http://13.125.192.47:8090/api/interview/voice/analyze - 음성 분석
+// 요청 파라미터: 없음
+// 요청 바디: 없음
+// 응답: 분석 결과 객체 (interviewId, questionId, userId, answerText)
+export const analyzeInterviewVoice = async () => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/interview/voice/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/interview/voice/analyze 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('analyzeInterviewVoice 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error
+        });
+        throw error;
+    }
+};
+
+// GET: http://13.125.192.47:8090/api/interview/voice/health - 음성 분석 헬스 체크
+// 요청 파라미터: 없음
+// 요청 바디: 없음
+// 응답: string
+export const getInterviewVoiceHealth = async () => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/interview/voice/health', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        // 응답이 string이므로 text()로 받기
+        const data = await response.text();
+        console.log('GET /api/interview/voice/health 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('getInterviewVoiceHealth 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error
+        });
+        throw error;
+    }
+};
+
+// 질문 생성 컨트롤러 API
+// POST: http://13.125.192.47:8090/api/interview/question-gen - 면접 질문 생성
+// 요청 파라미터: 없음
+// 요청 바디(JSON): { userId: number, coverLetter: string }
+// 응답: 질문 생성 결과 객체 (major, jobTitle, generatedAt, questions)
+export const generateInterviewQuestions = async ({ userId, coverLetter }) => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/interview/question-gen', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                coverLetter: coverLetter
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/interview/question-gen 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('generateInterviewQuestions 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            requestBody: { userId, coverLetter }
+        });
+        throw error;
+    }
+};
+
+// 면접 컨트롤러 API
+// POST: http://13.125.192.47:8090/api/interview/audio - 면접 오디오 업로드
+// 요청 파라미터: userId (query, integer), jobApplied (query, string)
+// 요청 바디(JSON): { file: string }
+// 응답: 면접 객체 (id, fileUrl, status, jobApplied, userId, requestTime, finishTime)
+export const uploadInterviewAudio = async (userId, jobApplied, file) => {
+    try {
+        // query 파라미터 구성
+        const params = new URLSearchParams();
+        if (userId !== undefined && userId !== null) {
+            params.append('userId', userId.toString());
+        }
+        if (jobApplied !== undefined && jobApplied !== null) {
+            params.append('jobApplied', jobApplied.toString());
+        }
+        const queryString = params.toString();
+        const url = queryString 
+            ? `http://13.125.192.47:8090/api/interview/audio?${queryString}`
+            : 'http://13.125.192.47:8090/api/interview/audio';
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                file: file
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/interview/audio 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('uploadInterviewAudio 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            userId: userId,
+            jobApplied: jobApplied,
+            file: file
+        });
+        throw error;
+    }
+};
+
+// GET: http://13.125.192.47:8090/api/interview/{interviewId} - 면접 조회
+// 요청 파라미터: interviewId (path, integer)
+// 요청 바디: 없음
+// 응답: 면접 정보 객체 (fileUrl, jobApplied)
+export const getInterviewById = async (interviewId) => {
+    try {
+        if (!interviewId) {
+            throw new Error('interviewId는 필수입니다.');
+        }
+
+        const response = await fetch(`http://13.125.192.47:8090/api/interview/${interviewId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log(`GET /api/interview/${interviewId} 응답:`, data);
+        return data;
+    } catch (error) {
+        console.error('getInterviewById 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            interviewId: interviewId
+        });
+        throw error;
+    }
+};
+
+// 면접 학습 기록 컨트롤러 API
+// POST: http://13.125.192.47:8090/api/interview-learning - 면접 학습 기록 생성
+// 요청 파라미터: 있음 (구체적인 정보 제공되지 않음)
+// 요청 바디(JSON): { userId, questionId, audioUrl, answerText, analysisResult, durationMs }
+// 응답: 면접 학습 기록 객체
+export const createInterviewLearning = async ({ userId, questionId, audioUrl, answerText, analysisResult, durationMs }) => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/interview-learning', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                questionId: questionId,
+                audioUrl: audioUrl,
+                answerText: answerText,
+                analysisResult: analysisResult,
+                durationMs: durationMs
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/interview-learning 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('createInterviewLearning 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            requestBody: { userId, questionId, audioUrl, answerText, analysisResult, durationMs }
+        });
+        throw error;
+    }
+};
+
+// 피드백 컨트롤러 API
+// POST: http://13.125.192.47:8090/api/feedback - 피드백 생성
+// 요청 파라미터: 없음
+// 요청 바디(JSON): { userId, jobApplied, introText, submissionTime }
+// 응답: 피드백 객체 (id, userId, jobApplied, introText, submissionTime)
+export const createFeedback = async ({ userId, jobApplied, introText, submissionTime }) => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                jobApplied: jobApplied,
+                introText: introText,
+                submissionTime: submissionTime
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/feedback 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('createFeedback 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            requestBody: { userId, jobApplied, introText, submissionTime }
+        });
+        throw error;
+    }
+};
+
+// GET: http://13.125.192.47:8090/api/feedback/{id} - 피드백 조회
+// 요청 파라미터: id (path, integer)
+// 요청 바디: 없음
+// 응답: 피드백 객체 (id, userId, jobApplied, introText, submissionTime)
+export const getFeedbackById = async (id) => {
+    try {
+        if (!id) {
+            throw new Error('id는 필수입니다.');
+        }
+
+        const response = await fetch(`http://13.125.192.47:8090/api/feedback/${id}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log(`GET /api/feedback/${id} 응답:`, data);
+        return data;
+    } catch (error) {
+        console.error('getFeedbackById 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            id: id
+        });
+        throw error;
+    }
+};
+
+// GET: http://13.125.192.47:8090/api/feedback/introduction/{introductionId} - 자기소개서별 피드백 조회
+// 요청 파라미터: introductionId (path, integer)
+// 요청 바디: 없음
+// 응답: 피드백 배열
+export const getFeedbackByIntroductionId = async (introductionId) => {
+    try {
+        if (!introductionId) {
+            throw new Error('introductionId는 필수입니다.');
+        }
+
+        const response = await fetch(`http://13.125.192.47:8090/api/feedback/introduction/${introductionId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log(`GET /api/feedback/introduction/${introductionId} 응답:`, data);
+        return data;
+    } catch (error) {
+        console.error('getFeedbackByIntroductionId 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            introductionId: introductionId
+        });
+        throw error;
+    }
+};
+
+// GET: http://13.125.192.47:8090/api/feedback/interview/{interviewId} - 면접별 피드백 조회
+// 요청 파라미터: interviewId (path, integer)
+// 요청 바디: 없음
+// 응답: 피드백 배열
+export const getFeedbackByInterviewId = async (interviewId) => {
+    try {
+        if (!interviewId) {
+            throw new Error('interviewId는 필수입니다.');
+        }
+
+        const response = await fetch(`http://13.125.192.47:8090/api/feedback/interview/${interviewId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log(`GET /api/feedback/interview/${interviewId} 응답:`, data);
+        return data;
+    } catch (error) {
+        console.error('getFeedbackByInterviewId 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            interviewId: interviewId
         });
         throw error;
     }

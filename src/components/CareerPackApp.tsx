@@ -48,6 +48,9 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
       setLoadingUser(true);
       setMeError(null);
       
+      // localStorage에서 이메일 확인 (OAuth 콜백에서 저장했을 수 있음)
+      const storedEmail = localStorage.getItem('careerpass_email');
+      
       // 1) getMe() 호출
       const me = await getMe();
       setUser(me);
@@ -62,6 +65,12 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
         err.message?.includes('Not Found') ||
         err.message?.includes('USER_NOT_FOUND');
       
+      // HTTP 500 에러 또는 서버 에러인 경우 localStorage에서 복구 시도
+      const isServerError = 
+        err.message?.includes('500') || 
+        err.message?.includes('HTTP error! status: 500') ||
+        err.message?.includes('Internal Server Error');
+      
       if (isNotFoundError) {
         try {
           // createUser({ nickname:"신규 사용자", major:"미설정", targetJob:"미설정" })
@@ -74,6 +83,44 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
         } catch (createErr: any) {
           console.error("사용자 생성 실패:", createErr);
           setMeError(createErr.message || "사용자 생성 중 오류가 발생했습니다.");
+        }
+      } else if (isServerError) {
+        // HTTP 500 에러인 경우 localStorage에서 정보 복구 시도
+        const storedProfile = localStorage.getItem('userProfile');
+        const storedEmail = localStorage.getItem('careerpass_email');
+        
+        if (storedProfile || storedEmail) {
+          try {
+            if (storedProfile) {
+              const parsed = JSON.parse(storedProfile);
+              setUser({
+                id: localStorage.getItem('userId') || null,
+                email: parsed.email || storedEmail || '',
+                nickname: parsed.name || '',
+                major: parsed.department || '',
+                targetJob: parsed.targetJob || '',
+                profileCompleted: parsed.isComplete || false
+              });
+            } else if (storedEmail) {
+              // 이메일만 있는 경우 기본 사용자 객체 설정
+              setUser({
+                id: localStorage.getItem('userId') || null,
+                email: storedEmail,
+                nickname: '',
+                major: '',
+                targetJob: '',
+                profileCompleted: false
+              });
+            }
+            setMeError(null); // 에러 무시하고 계속 진행
+            console.log('HTTP 500 에러 발생했으나 localStorage에서 정보 복구 성공');
+          } catch {
+            setMeError(null);
+          }
+        } else {
+          // localStorage에도 정보가 없으면 에러 표시하지 않고 null로 설정
+          setMeError(null);
+          setUser(null);
         }
       } else {
         // CORS 에러 또는 네트워크 에러인 경우 localStorage에서 기존 사용자 정보 사용
@@ -98,7 +145,38 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
             setMeError(null);
           }
         } else {
-          setMeError(err.message || "유저 정보를 불러오지 못했습니다.");
+          // 기타 에러는 localStorage에서 복구 시도
+          const storedProfile = localStorage.getItem('userProfile');
+          const storedEmail = localStorage.getItem('careerpass_email');
+          if (storedProfile || storedEmail) {
+            try {
+              if (storedProfile) {
+                const parsed = JSON.parse(storedProfile);
+                setUser({
+                  id: localStorage.getItem('userId') || null,
+                  email: parsed.email || storedEmail || '',
+                  nickname: parsed.name || '',
+                  major: parsed.department || '',
+                  targetJob: parsed.targetJob || '',
+                  profileCompleted: parsed.isComplete || false
+                });
+              } else {
+                setUser({
+                  id: localStorage.getItem('userId') || null,
+                  email: storedEmail || '',
+                  nickname: '',
+                  major: '',
+                  targetJob: '',
+                  profileCompleted: false
+                });
+              }
+              setMeError(null);
+            } catch {
+              setMeError(null);
+            }
+          } else {
+            setMeError(null); // 에러 표시하지 않음
+          }
         }
       }
     } finally {

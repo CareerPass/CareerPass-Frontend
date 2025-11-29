@@ -4,7 +4,7 @@ import { CareerPackApp } from "./components/CareerPackApp";
 import { LoginPage } from "./components/LoginPage";
 import { LoginRequired } from "./components/LoginRequired";
 import { ProfileRequired } from "./components/ProfileRequired";
-import { getMe } from "./api";
+import { getMe, loginOrCreateUser } from "./api";
 
 type PageType = 'main' | 'roadmap' | 'resume' | 'interview' | 'profile';
 
@@ -78,48 +78,61 @@ export default function App() {
       console.log('구글 OAuth 콜백 감지, code:', code);
 
       try {
-        // 백엔드가 이미 세션/쿠키를 설정했다고 가정하고 /me 엔드포인트로 로그인 상태 확인
-        // CORS 문제가 있을 수 있으므로, 일단 로그인 성공으로 간주하고 진행
-        try {
-          const userData = await getMe();
-          console.log('사용자 정보 조회 성공:', userData);
+        // 구글 OAuth 결과에서 email 추출
+        // 백엔드가 OAuth 처리 후 email을 쿼리 파라미터로 반환하거나,
+        // 또는 구글 API를 통해 직접 가져올 수 있음
+        const urlParamsForEmail = new URLSearchParams(window.location.search);
+        let googleEmail = urlParamsForEmail.get('email');
+        
+        // email이 쿼리 파라미터에 없으면, 구글 OAuth 토큰으로 사용자 정보 가져오기 시도
+        // 또는 백엔드가 OAuth 처리 후 쿼리 파라미터로 전달할 수 있음
+        if (!googleEmail) {
+          // TODO: 구글 OAuth 토큰을 사용하여 구글 API에서 email 가져오기
+          // 또는 백엔드가 OAuth 처리 후 쿼리 파라미터로 email을 전달하는 경우
+          // 일단 에러 처리 (나중에 구글 API 연동 시 수정)
+          console.warn('이메일 정보를 찾을 수 없습니다. 쿼리 파라미터에 email이 있는지 확인하세요.');
+          throw new Error('이메일 정보가 없습니다. 구글 로그인 후 이메일이 제공되지 않았습니다.');
+        }
+
+        console.log('구글 로그인 이메일:', googleEmail);
+
+        // 1) 가장 먼저 백엔드 로그인 or 자동가입 API 호출
+        const profile = await loginOrCreateUser(googleEmail);
+        console.log('로그인/자동가입 성공, 프로필:', profile);
+
+        // 2) 백엔드가 준 profile 정보를 localStorage에 저장
+        if (profile) {
+          localStorage.setItem('userId', profile.id?.toString() || '');
+          localStorage.setItem('careerpass_email', profile.email || googleEmail);
           
-          // 사용자 정보가 있으면 localStorage에 저장
-          if (userData) {
-            localStorage.setItem('userId', userData.id?.toString() || '');
-            if (userData.email) {
-              const profile = {
-                email: userData.email,
-                name: userData.nickname || userData.name || '',
-                department: userData.major || '',
-                targetJob: userData.targetJob || '',
-                isComplete: userData.profileCompleted || false
-              };
-              localStorage.setItem('userProfile', JSON.stringify(profile));
-            }
+          if (profile.email) {
+            const userProfile = {
+              email: profile.email,
+              name: profile.nickname || profile.name || '',
+              department: profile.major || '',
+              targetJob: profile.targetJob || '',
+              isComplete: profile.profileCompleted || false
+            };
+            localStorage.setItem('userProfile', JSON.stringify(userProfile));
           }
-        } catch (meError) {
-          // /me 호출 실패해도 OAuth 콜백이 성공했다는 것은 백엔드가 처리했다는 의미
-          // CORS 문제일 수 있으므로 로그만 남기고 계속 진행
-          console.warn('getMe 호출 실패 (CORS 문제일 수 있음), OAuth 콜백은 성공했으므로 로그인 처리 계속:', meError);
-          console.log('OAuth 콜백 성공 = 백엔드가 처리했다는 의미로 간주, 로그인 처리 계속');
         }
 
         // URL에서 code 파라미터 제거
         window.history.replaceState({}, '', window.location.pathname);
 
-        // 로그인 성공 처리 (OAuth 콜백이 성공했다는 것은 백엔드가 처리했다는 의미)
+        // 로그인 성공 처리
         setIsLoggedIn(true);
         setShowLogin(false);
-        
-        // 프로필 완성 여부에 따라 페이지 이동
-        const profileComplete = checkProfileComplete();
-        if (profileComplete) {
-          console.log('대시보드(roadmap)로 이동');
-          setCurrentPage('roadmap');
-        } else {
-          console.log('프로필 페이지로 이동');
+
+        // 3) profileCompleted 여부에 따라 라우팅
+        if (!profile.profileCompleted) {
+          // 프로필 미설정 → 학습프로필 화면부터
+          console.log('프로필 미설정 → 학습프로필 화면으로 이동');
           setCurrentPage('profile');
+        } else {
+          // 이미 프로필 있는 유저 → 대시보드로
+          console.log('프로필 완료 → 대시보드(roadmap)로 이동');
+          setCurrentPage('roadmap');
         }
       } catch (error) {
         console.error('OAuth 콜백 처리 실패:', error);
