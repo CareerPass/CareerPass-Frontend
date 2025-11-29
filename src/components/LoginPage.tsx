@@ -1,3 +1,20 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_REDIRECT_URI = import.meta.env.VITE_GOOGLE_REDIRECT_URI;
+
+const GOOGLE_AUTH_URL =
+  "https://accounts.google.com/o/oauth2/v2/auth" +
+  `?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}` +
+  `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
+  `&response_type=code` +
+  `&scope=openid%20email%20profile` +
+  `&access_type=offline` +
+  `&prompt=consent`;
+
+console.log("CLIENT =", GOOGLE_CLIENT_ID);
+console.log("REDIRECT =", GOOGLE_REDIRECT_URI);
+console.log("AUTH_URL =", GOOGLE_AUTH_URL);
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { ArrowLeft, GraduationCap } from "lucide-react";
@@ -10,10 +27,9 @@ interface LoginPageProps {
 
 export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const handleGoogleLogin = () => {
-    // 구글 로그인 시뮬레이션 (실제로는 구글 OAuth API를 사용)
-    console.log("구글 로그인 시도");
-    onLogin();
-  };
+  console.log("구글 로그인 시도 → 구글 페이지로 이동");
+  window.location.href = GOOGLE_AUTH_URL;   // 🔥 fetch 절대 X
+};
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4">

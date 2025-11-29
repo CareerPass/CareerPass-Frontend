@@ -1,6 +1,6 @@
 // fetch는 기본 브라우저 API이므로 별도의 import가 필요 없습니다.
 // Vite 환경에서는 import.meta.env를 사용하지만, 호환성을 위해 둘 다 지원
-const API_BASE_URL = import.meta.env.VITE_API_URL || process.env.REACT_APP_API_URL || 'http://13.125.192.47:8090';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // 기본 fetch 래퍼 함수
 const fetchApi = async (endpoint, options = {}) => {
