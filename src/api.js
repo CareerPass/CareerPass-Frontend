@@ -451,6 +451,15 @@ export const getLogoutSuccess = async () => {
     }
 };
 
+
+
+//호환성을 위해서 혹시 물라서 추가한 부분인데
+export const api = {
+    getUsers: () =>
+        fetch(`${BASE_URL}/api/users`).then(res => res.json()),
+};
+//이많큼 4줄은 삭제해도 무방함
+
 //get
     fetch('http://13.125.192.47:8090/api/users')
     .then(response => response.json())
