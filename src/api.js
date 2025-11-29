@@ -369,6 +369,196 @@ export const getMe = async () => {
     }
 };
 
+// 사용자 프로필 업데이트 API
+// PATCH: http://13.125.192.47:8090/api/users/{id}/profile - 사용자 프로필 수정
+// 요청 파라미터: id (path, integer)
+// 요청 바디(JSON): { nickname: string, major: string, targetJob: string }
+// 응답: 업데이트된 사용자 정보 객체
+export const updateUserProfile = async (id, { nickname, major, targetJob }) => {
+    try {
+        if (!id) {
+            throw new Error('id는 필수입니다.');
+        }
+
+        const response = await fetch(`http://13.125.192.47:8090/api/users/${id}/profile`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                nickname: nickname,
+                major: major,
+                targetJob: targetJob
+            }),
+        });
+
+        if (!response.ok) {
+            // response.ok가 아닐 경우 콘솔에 status와 message 출력
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        // 정상인 경우 JSON 데이터 console.log
+        const data = await response.json();
+        console.log('PATCH /api/users/{id}/profile 응답:', data);
+        return data;
+    } catch (error) {
+        // 오류 발생 시 상세 오류를 알 수 있도록 출력
+        console.error('updateUserProfile 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            id: id,
+            profileData: { nickname, major, targetJob }
+        });
+        throw error;
+    }
+};
+
+// 사용자 ID로 조회 API
+// GET: http://13.125.192.47:8090/api/users/{id} - 사용자 ID로 조회
+// 요청 파라미터: id (path, integer)
+// 요청 바디: 없음
+// 응답: 사용자 객체 (nickname, email, major, targetJob, profileCompleted, recentInterviews, recentIntroductions)
+export const getUserById = async (id) => {
+    try {
+        if (!id) {
+            throw new Error('id는 필수입니다.');
+        }
+
+        const response = await fetch(`http://13.125.192.47:8090/api/users/${id}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            // response.ok가 아닐 경우 콘솔에 status와 message 출력
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        // 정상인 경우 JSON 데이터 console.log
+        const data = await response.json();
+        console.log('GET /api/users/{id} 응답:', data);
+        return data;
+    } catch (error) {
+        // 오류 발생 시 상세 오류를 알 수 있도록 출력
+        console.error('getUserById 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            id: id
+        });
+        throw error;
+    }
+};
+
+// 사용자 목록 조회 API
+// GET: http://13.125.192.47:8090/api/users - 사용자 목록 조회
+// 요청 파라미터: 없음
+// 요청 바디: 없음
+// 응답: 사용자 배열 (nickname, email, major, targetJob, profileCompleted, recentInterviews, recentIntroductions)
+export const getUsers = async () => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/users', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            // response.ok가 아닐 경우 콘솔에 status와 message 출력
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        // 정상인 경우 JSON 데이터 console.log
+        const data = await response.json();
+        console.log('GET /api/users 응답:', data);
+        return data;
+    } catch (error) {
+        // 오류 발생 시 상세 오류를 알 수 있도록 출력
+        console.error('getUsers 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error
+        });
+        throw error;
+    }
+};
+
+// 사용자 생성 API
+// POST: http://13.125.192.47:8090/api/users - 사용자 생성
+// 요청 파라미터: 없음
+// 요청 바디(JSON): { nickname: string, major: string, targetJob: string }
+// 응답: 사용자 객체 (nickname, email, major, targetJob, profileCompleted, recentInterviews, recentIntroductions)
+export const createUser = async ({ nickname, major, targetJob }) => {
+    try {
+        const response = await fetch('http://13.125.192.47:8090/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                nickname: nickname,
+                major: major,
+                targetJob: targetJob
+            }),
+        });
+
+        if (!response.ok) {
+            // response.ok가 아닐 경우 콘솔에 status와 message 출력
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        // 정상인 경우 JSON 데이터 console.log
+        const data = await response.json();
+        console.log('POST /api/users 응답:', data);
+        return data;
+    } catch (error) {
+        // 오류 발생 시 상세 오류를 알 수 있도록 출력
+        console.error('createUser 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            requestBody: { nickname, major, targetJob }
+        });
+        throw error;
+    }
+};
+
 // 헬스 체크 API
 // GET: http://13.125.192.47:8090/api/health - 서버 헬스 체크
 // 요청 파라미터: 없음

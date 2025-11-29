@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { getUserById, updateUserProfile } from "../api";
 import { 
   User, 
   GraduationCap, 
@@ -23,24 +24,68 @@ import {
 } from "lucide-react";
 
 interface LearningProfileProps {
+  userId?: number;
   onProfileComplete?: () => void;
 }
 
-export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}) {
+export function LearningProfile({ userId, onProfileComplete }: LearningProfileProps = {}) {
   const [userInfo, setUserInfo] = useState({
-    name: "김진수",
-    email: "jinsu.kim@university.ac.kr",
-    studentId: "2022123456",
-    department: "컴퓨터공학과",
-    year: "3학년",
-    targetJob: "백엔드 개발자",
-    tags: ["React", "Node.js", "TypeScript", "AWS"]
+    name: "",
+    email: "",
+    major: "",
+    targetJob: ""
   });
 
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [editForm, setEditForm] = useState(userInfo);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    major: "",
+    targetJob: ""
+  });
   const [showInterviewDetail, setShowInterviewDetail] = useState(false);
   const [showResumeDetail, setShowResumeDetail] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 사용자 정보 로드
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      const storedUserId = localStorage.getItem('userId');
+      const targetUserId = userId || (storedUserId ? parseInt(storedUserId) : null);
+      
+      if (!targetUserId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const userData = await getUserById(targetUserId);
+        
+        // 응답 매핑: nickname→name, email→email, major→major, targetJob→targetJob
+        setUserInfo({
+          name: userData.nickname || "",
+          email: userData.email || "",
+          major: userData.major || "",
+          targetJob: userData.targetJob || ""
+        });
+        
+        setEditForm({
+          name: userData.nickname || "",
+          major: userData.major || "",
+          targetJob: userData.targetJob || ""
+        });
+      } catch (error: any) {
+        console.error("사용자 정보 로드 실패:", error);
+        setSaveError("사용자 정보를 불러오는데 실패했습니다.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserInfo();
+  }, [userId]);
 
   const [achievements] = useState([
     {
@@ -134,13 +179,58 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
   ]);
 
   const handleEditProfile = () => {
-    setEditForm(userInfo);
+    setEditForm({
+      name: userInfo.name,
+      major: userInfo.major,
+      targetJob: userInfo.targetJob
+    });
+    setSaveError(null); // 에러 상태 초기화
     setShowEditProfile(true);
   };
 
-  const handleSaveProfile = () => {
-    setUserInfo(editForm);
-    setShowEditProfile(false);
+  const handleSaveProfile = async () => {
+    // userId가 없으면 에러 처리
+    const storedUserId = localStorage.getItem('userId');
+    const targetUserId = userId || (storedUserId ? parseInt(storedUserId) : null);
+    
+    if (!targetUserId) {
+      setSaveError("사용자 ID가 없습니다. 다시 로그인 후 시도해주세요.");
+      return;
+    }
+
+    // isSaving = true, saveError 초기화
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      // updateUserProfile 호출
+      await updateUserProfile(targetUserId, {
+        nickname: editForm.name,
+        major: editForm.major,
+        targetJob: editForm.targetJob,
+      });
+
+      // PATCH 성공 후, 프론트 상태(userInfo) 갱신
+      setUserInfo((prev) => ({
+        ...prev,
+        name: editForm.name,
+        major: editForm.major,
+        targetJob: editForm.targetJob,
+      }));
+
+      // 모달 닫기
+      setShowEditProfile(false);
+
+      // 프로필 설정 완료 콜백 호출 → 상위에서 profileCompleted = true로 반영
+      if (onProfileComplete) {
+        onProfileComplete();
+      }
+    } catch (error: any) {
+      console.error("프로필 저장 실패:", error);
+      setSaveError(error.message || "프로필 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleInterviewClick = () => {
@@ -282,7 +372,7 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
                 <p className="text-muted-foreground">{question}</p>
                 <div className="bg-muted/50 p-3 rounded border-l-4 border-primary/20">
                   <p className="text-sm text-muted-foreground">
-                    {index === 0 ? "네, 안녕하세요. 저는 컴퓨터공학과 3학년에 재학 중인 김진수입니다. 주로 백엔드 개발에 관심이 많아 Node.js와 Python을 활용한 프로젝트를 여러 개 진행했습니다..." :
+                    {index === 0 ? "네, 안녕하세요. 저는 주로 백엔드 개발에 관심이 많아 Node.js와 Python을 활용한 프로젝트를 여러 개 진행했습니다..." :
                      index === 1 ? "제 강점은 문제 해결 능력입니다. 복잡한 문제를 단계별로 나누어 체계적으로 접근하는 편이고, 약점은 때로는 완벽주의 성향이 강해서..." :
                      index === 2 ? "팀 프로젝트에서 의견 충돌이 있을 때는 먼저 각자의 입장을 충분히 들어보고, 공통의 목표를 다시 확인한 후..." :
                      index === 3 ? "네, 최근 프로젝트에서 대용량 데이터 처리 시 성능 이슈가 발생했는데, 데이터베이스 인덱싱과 쿼리 최적화를 통해..." :
@@ -512,6 +602,18 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
     );
   }
 
+  // 로딩 중일 때
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#051243] mx-auto mb-4"></div>
+          <p className="text-gray-600">사용자 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* 프로필 수정 오버레이 */}
@@ -534,18 +636,27 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* 에러 메시지 표시 */}
+              {saveError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{saveError}</p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>이름</Label>
                 <Input 
                   value={editForm.name}
                   onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                  disabled={isSaving}
                 />
               </div>
               <div className="space-y-2">
-                <Label>이메일</Label>
+                <Label>전공</Label>
                 <Input 
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                  value={editForm.major}
+                  onChange={(e) => setEditForm({...editForm, major: e.target.value})}
+                  disabled={isSaving}
                 />
               </div>
               <div className="space-y-2">
@@ -553,27 +664,25 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
                 <Input 
                   value={editForm.targetJob}
                   onChange={(e) => setEditForm({...editForm, targetJob: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>기술 태그 (쉼표로 구분)</Label>
-                <Input 
-                  value={editForm.tags.join(', ')}
-                  onChange={(e) => setEditForm({...editForm, tags: e.target.value.split(', ')})}
-                  placeholder="React, Node.js, TypeScript"
+                  disabled={isSaving}
                 />
               </div>
               <div className="flex gap-2 pt-4">
                 <Button 
                   onClick={handleSaveProfile} 
                   className="flex-1"
+                  disabled={isSaving}
                 >
-                  저장
+                  {isSaving ? "저장 중..." : "저장"}
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => setShowEditProfile(false)}
+                  onClick={() => {
+                    setShowEditProfile(false);
+                    setSaveError(null);
+                  }}
                   className="flex-1"
+                  disabled={isSaving}
                 >
                   취소
                 </Button>
@@ -616,42 +725,22 @@ export function LearningProfile({ onProfileComplete }: LearningProfileProps = {}
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">이름</p>
               <p className="font-medium">{userInfo.name}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">학번</p>
-              <p className="font-medium">{userInfo.studentId}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">이메일</p>
               <p className="font-medium">{userInfo.email}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">현재 학년</p>
-              <p className="font-medium">{userInfo.year}</p>
-            </div>
-            <div className="space-y-1">
               <p className="text-sm text-muted-foreground">전공</p>
-              <p className="font-medium">{userInfo.department}</p>
+              <p className="font-medium">{userInfo.major}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">목표 직무</p>
               <p className="font-medium">{userInfo.targetJob}</p>
-            </div>
-          </div>
-          
-          {/* 기술 태그 */}
-          <div className="mt-6 space-y-2">
-            <p className="text-sm text-muted-foreground">관심 기술</p>
-            <div className="flex flex-wrap gap-2">
-              {userInfo.tags.map((tag, index) => (
-                <Badge key={index} className="bg-blue-100 text-blue-700 border-blue-200 rounded-full px-3 py-1">
-                  {tag}
-                </Badge>
-              ))}
             </div>
           </div>
         </CardContent>

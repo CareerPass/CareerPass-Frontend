@@ -10,7 +10,7 @@ export const departments: Department[] = [
     id: "computer-science",
     name: "컴퓨터공학과",
     jobs: [
-      "데이터 베이스 개발자",
+      "데이터베이스 개발자",
       "시스템소프트웨어 개발자",
       "컴퓨터시스템설계 분석가",
       "모바일앱 개발자",

@@ -1,21 +1,103 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { BookOpen, Star } from "lucide-react";
-import { roadmapData } from "./roadmapData";
+import { BookOpen, Star, Loader } from "lucide-react";
 import { departments } from "./DepartmentSelector";
+import { getRoadmapMajor } from "../api";
 
 interface SubjectRoadmapViewProps {
   selectedDepartment: string;
-  selectedJob: string;
 }
 
-export function SubjectRoadmapView({ selectedDepartment, selectedJob }: SubjectRoadmapViewProps) {
-  const jobData = roadmapData[selectedDepartment]?.[selectedJob];
+interface Subject {
+  name: string;
+  description: string;
+  credits: string;
+  importance: 'high' | 'medium' | 'low';
+}
+
+interface YearData {
+  subjects: Subject[];
+}
+
+export function SubjectRoadmapView({ selectedDepartment }: SubjectRoadmapViewProps) {
+  const [subjectsData, setSubjectsData] = useState<Record<string, YearData>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const departmentInfo = departments.find(dept => dept.id === selectedDepartment);
 
-  if (!jobData) {
-    return <div>데이터를 찾을 수 없습니다.</div>;
-  }
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      if (!selectedDepartment || !departmentInfo) {
+        setSubjectsData({});
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // API 호출: 학과명만 전달 (job 없이)
+        console.log('API 호출 시작:', { major: departmentInfo.name });
+        const data = await getRoadmapMajor(departmentInfo.name);
+        console.log('API 응답 받음:', data);
+        
+        // API 응답이 배열인지 확인
+        if (!Array.isArray(data)) {
+          console.warn('API 응답이 배열이 아닙니다:', data);
+          setSubjectsData({});
+          setError('서버 응답 형식이 올바르지 않습니다.');
+          return;
+        }
+        
+        // API 응답을 학년별로 그룹화
+        // API 응답: [{id, roadmapType, major, majorName, subjectName, grade}]
+        const groupedByGrade: Record<string, YearData> = {};
+        
+        data.forEach((item: any) => {
+          const grade = item.grade || 1; // grade가 없으면 1학년으로 처리
+          const yearKey = `${grade}학년`;
+          
+          if (!groupedByGrade[yearKey]) {
+            groupedByGrade[yearKey] = { subjects: [] };
+          }
+          
+          // API 응답을 Subject 형태로 변환
+          groupedByGrade[yearKey].subjects.push({
+            name: item.subjectName || item.subject_name || item.subjectName || '',
+            description: item.description || `${item.subjectName || ''} 과목입니다.`,
+            credits: item.credits || item.credit || '3', // 기본값 3학점
+            importance: item.importance === 'high' ? 'high' : 
+                       item.importance === 'medium' ? 'medium' : 'low'
+          });
+        });
+
+        setSubjectsData(groupedByGrade);
+      } catch (err: any) {
+        console.error('교과목 로드맵 조회 실패:', err);
+        
+        // 에러 타입에 따라 다른 메시지 표시
+        let errorMessage = '교과목 데이터를 불러오는데 실패했습니다.';
+        
+        if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+          errorMessage = '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
+        } else if (err.message?.includes('HTTP error! status: 404')) {
+          errorMessage = `해당 전공의 교과목 로드맵 데이터가 서버에 없습니다.\n(전공: ${departmentInfo?.name})`;
+        } else if (err.message?.includes('HTTP error')) {
+          errorMessage = `서버 오류: ${err.message}`;
+        } else {
+          errorMessage = err.message || errorMessage;
+        }
+        
+        setError(errorMessage);
+        setSubjectsData({});
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSubjects();
+  }, [selectedDepartment, departmentInfo]);
 
   const getImportanceColor = (importance: string) => {
     switch (importance) {
@@ -37,6 +119,45 @@ export function SubjectRoadmapView({ selectedDepartment, selectedJob }: SubjectR
 
   const years = ["1학년", "2학년", "3학년", "4학년"];
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-[#051243]">
+            <BookOpen className="w-8 h-8 text-[#051243]" />
+            교과목 로드맵
+          </h1>
+          <p className="text-gray-600">
+            {departmentInfo?.name} 교과목 로드맵
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader className="w-8 h-8 animate-spin text-[#051243]" />
+          <span className="ml-2 text-gray-600">데이터를 불러오는 중...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-[#051243]">
+            <BookOpen className="w-8 h-8 text-[#051243]" />
+            교과목 로드맵
+          </h1>
+          <p className="text-gray-600">
+            {departmentInfo?.name} 교과목 로드맵
+          </p>
+        </div>
+        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -45,12 +166,12 @@ export function SubjectRoadmapView({ selectedDepartment, selectedJob }: SubjectR
           교과목 로드맵
         </h1>
         <p className="text-gray-600">
-          {departmentInfo?.name} - {selectedJob} 직무 맞춤 교과목 로드맵
+          {departmentInfo?.name} 교과목 로드맵
         </p>
       </div>
 
       {years.map((year) => {
-        const yearData = jobData[year];
+        const yearData = subjectsData[year];
         if (!yearData || !yearData.subjects || yearData.subjects.length === 0) {
           return null;
         }
@@ -102,6 +223,12 @@ export function SubjectRoadmapView({ selectedDepartment, selectedJob }: SubjectR
           </div>
         );
       })}
+      
+      {Object.keys(subjectsData).length === 0 && !isLoading && !error && (
+        <div className="text-center py-12 text-muted-foreground">
+          교과목 데이터가 없습니다.
+        </div>
+      )}
     </div>
   );
 }
