@@ -326,17 +326,19 @@ export const createIntroductionLearning = async (requestBody) => {
 };
 
 // 사용자 인증 API
-// GET: http://13.125.192.47:8090/api/me - 현재 사용자 정보 조회
+// GET: {API_BASE_URL}/me - 현재 사용자 정보 조회 (Swagger 기준)
 // 요청 파라미터: 없음
 // 요청 바디: 없음
 // 응답: 사용자 정보 객체
 export const getMe = async () => {
     try {
-        const response = await fetch('http://13.125.192.47:8090/api/me', {
+        // CORS 문제 해결을 위해 credentials 옵션 제거 (백엔드 CORS 설정이 필요할 수 있음)
+        const response = await fetch(`${API_BASE_URL}/me`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
+            // credentials: 'include' 제거 - CORS 에러 방지
         });
 
         if (!response.ok) {
