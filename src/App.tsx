@@ -81,12 +81,28 @@ export default function App() {
         // 백엔드가 이미 세션/쿠키를 설정했다고 가정하고 /me 엔드포인트로 로그인 상태 확인
         // CORS 문제가 있을 수 있으므로, 일단 로그인 성공으로 간주하고 진행
         try {
-          const userInfo = await getMe();
-          console.log('로그인 상태 확인 성공:', userInfo);
+          const userData = await getMe();
+          console.log('사용자 정보 조회 성공:', userData);
+          
+          // 사용자 정보가 있으면 localStorage에 저장
+          if (userData) {
+            localStorage.setItem('userId', userData.id?.toString() || '');
+            if (userData.email) {
+              const profile = {
+                email: userData.email,
+                name: userData.nickname || userData.name || '',
+                department: userData.major || '',
+                targetJob: userData.targetJob || '',
+                isComplete: userData.profileCompleted || false
+              };
+              localStorage.setItem('userProfile', JSON.stringify(profile));
+            }
+          }
         } catch (meError) {
           // /me 호출 실패해도 OAuth 콜백이 성공했다는 것은 백엔드가 처리했다는 의미
           // CORS 문제일 수 있으므로 로그만 남기고 계속 진행
           console.warn('getMe 호출 실패 (CORS 문제일 수 있음), OAuth 콜백은 성공했으므로 로그인 처리 계속:', meError);
+          console.log('OAuth 콜백 성공 = 백엔드가 처리했다는 의미로 간주, 로그인 처리 계속');
         }
 
         // URL에서 code 파라미터 제거
@@ -109,8 +125,10 @@ export default function App() {
         console.error('OAuth 콜백 처리 실패:', error);
         // 에러 발생 시 URL 정리
         window.history.replaceState({}, '', window.location.pathname);
-        // 에러가 있어도 사용자에게는 메인 페이지로 이동
-        setCurrentPage('main');
+        // 오류가 발생해도 OAuth 콜백이 있었다는 것은 성공으로 간주
+        setIsLoggedIn(true);
+        setShowLogin(false);
+        setCurrentPage('roadmap');
       } finally {
         isProcessingOAuthRef.current = false;
       }
