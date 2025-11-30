@@ -32,18 +32,19 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const isProcessingOAuthRef = useRef(false);
   
-  // localStorage에서 프로필 완성 여부 확인
+  // localStorage에서 프로필 완성 여부 확인 (name, major, targetJob 기준)
   const checkProfileComplete = () => {
     const profile = localStorage.getItem('userProfile');
-    if (profile) {
-      try {
-        const parsed = JSON.parse(profile);
-        return parsed.isComplete === true;
-      } catch {
-        return false;
-      }
+    if (!profile) {
+      return false;
     }
-    return false;
+    try {
+      const parsed = JSON.parse(profile);
+      // name, major, targetJob 모두 truthy여야 완료
+      return !!(parsed.name && parsed.major && parsed.targetJob);
+    } catch {
+      return false;
+    }
   };
   
   const [isProfileComplete, setIsProfileComplete] = useState(checkProfileComplete()); // localStorage에서 프로필 상태 확인
@@ -124,16 +125,9 @@ export default function App() {
         setIsLoggedIn(true);
         setShowLogin(false);
 
-        // 3) profileCompleted 여부에 따라 라우팅
-        if (!profile.profileCompleted) {
-          // 프로필 미설정 → 학습프로필 화면부터
-          console.log('프로필 미설정 → 학습프로필 화면으로 이동');
-          setCurrentPage('profile');
-        } else {
-          // 이미 프로필 있는 유저 → 대시보드로
-          console.log('프로필 완료 → 대시보드(roadmap)로 이동');
-          setCurrentPage('roadmap');
-        }
+        // 3) 로그인 후 무조건 학습프로필 유도 화면으로 이동
+        console.log('로그인 성공 → 학습프로필 유도 화면으로 이동');
+        setCurrentPage('profile-required' as PageType);
       } catch (error) {
         console.error('OAuth 콜백 처리 실패:', error);
         // 에러 발생 시 URL 정리
@@ -141,7 +135,8 @@ export default function App() {
         // 오류가 발생해도 OAuth 콜백이 있었다는 것은 성공으로 간주
         setIsLoggedIn(true);
         setShowLogin(false);
-        setCurrentPage('roadmap');
+        // 로그인 후 무조건 학습프로필 유도 화면으로 이동
+        setCurrentPage('profile-required' as PageType);
       } finally {
         isProcessingOAuthRef.current = false;
       }
@@ -174,12 +169,8 @@ export default function App() {
   const handleLogin = () => {
     setIsLoggedIn(true);
     setShowLogin(false);
-    // 첫 로그인 시 프로필이 완성되어 있으면 메인으로, 아니면 프로필 페이지로
-    if (checkProfileComplete()) {
-      setCurrentPage('roadmap');
-    } else {
-      setCurrentPage('profile');
-    }
+    // 로그인 후 무조건 학습프로필 유도 화면으로 이동
+    setCurrentPage('profile-required' as PageType);
   };
 
   const handleLogout = () => {
@@ -193,18 +184,9 @@ export default function App() {
   };
 
   const handleProfileComplete = () => {
-    setIsProfileComplete(true);
-    // localStorage에 프로필 완성 상태 업데이트
-    const profile = localStorage.getItem('userProfile');
-    if (profile) {
-      try {
-        const parsed = JSON.parse(profile);
-        parsed.isComplete = true;
-        localStorage.setItem('userProfile', JSON.stringify(parsed));
-      } catch {
-        // 에러 무시
-      }
-    }
+    // localStorage의 userProfile이 이미 업데이트되어 있으므로
+    // checkProfileComplete()로 다시 확인하여 상태 갱신
+    setIsProfileComplete(checkProfileComplete());
   };
 
   const handleGoToProfile = () => {

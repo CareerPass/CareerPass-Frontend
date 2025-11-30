@@ -48,20 +48,19 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
     targetJob: string;
   } | null>(null);
   
-  // 학습프로필 완료 여부 계산 함수
+  // 학습프로필 완료 여부 계산 함수 (localStorage 기준)
   const isProfileCompleted = (): boolean => {
-    if (!profileInfo) {
-      // profileInfo가 없으면 user 정보로 판단
-      if (user) {
-        return !!(user.nickname && user.nickname.trim() !== "" &&
-                  user.major && user.major.trim() !== "" &&
-                  user.targetJob && user.targetJob.trim() !== "");
-      }
+    const profile = localStorage.getItem('userProfile');
+    if (!profile) {
       return false;
     }
-    return !!(profileInfo.name && profileInfo.name.trim() !== "" &&
-              profileInfo.major && profileInfo.major.trim() !== "" &&
-              profileInfo.targetJob && profileInfo.targetJob.trim() !== "");
+    try {
+      const parsed = JSON.parse(profile);
+      // name, major, targetJob 모두 truthy여야 완료
+      return !!(parsed.name && parsed.major && parsed.targetJob);
+    } catch {
+      return false;
+    }
   };
 
   const selectedDeptData = departments.find(dept => dept.id === selectedDepartment);
@@ -214,16 +213,22 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
     initUser();
   }, []);
   
-  // user 정보가 변경되면 profileInfo도 업데이트
+  // localStorage에서 profileInfo 초기화
   useEffect(() => {
-    if (user) {
-      setProfileInfo({
-        name: user.nickname || "",
-        major: user.major || "",
-        targetJob: user.targetJob || ""
-      });
+    const profile = localStorage.getItem('userProfile');
+    if (profile) {
+      try {
+        const parsed = JSON.parse(profile);
+        setProfileInfo({
+          name: parsed.name || "",
+          major: parsed.major || "",
+          targetJob: parsed.targetJob || ""
+        });
+      } catch {
+        // 파싱 실패 시 무시
+      }
     }
-  }, [user]);
+  }, []);
 
   // 기존 코드 호환성을 위해 me를 user의 alias로 사용
   const me = user;
@@ -245,6 +250,19 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
   // 학습프로필 정보 변경 핸들러
   const handleProfileInfoChange = (info: { name: string; major: string; targetJob: string }) => {
     setProfileInfo(info);
+    // localStorage도 함께 업데이트 (이미 LearningProfile에서 저장했지만 동기화)
+    const profile = localStorage.getItem('userProfile');
+    if (profile) {
+      try {
+        const parsed = JSON.parse(profile);
+        parsed.name = info.name;
+        parsed.major = info.major;
+        parsed.targetJob = info.targetJob;
+        localStorage.setItem('userProfile', JSON.stringify(parsed));
+      } catch {
+        // 파싱 실패 시 무시
+      }
+    }
   };
   
   // 페이지 변경 핸들러 (학습프로필 미완성 체크 포함)
@@ -544,14 +562,10 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
     );
   }
 
-  // 프로필 미완료 시 ProfileRequired 화면 강제 표시 (기존 로직 유지)
+  // 프로필 미완료 시 ProfileRequired 화면 강제 표시
   // 단, 현재 경로가 'profile' (learning-profile)일 때는 예외로 하고 LearningProfile을 바로 보여주기
-  // 학습프로필 완료 여부는 isProfileCompleted()로 판단
-  if (
-    user &&
-    !isProfileCompleted() &&
-    currentPage !== 'profile'
-  ) {
+  // 학습프로필 완료 여부는 localStorage 기준으로 판단
+  if (!isProfileCompleted() && currentPage !== 'profile') {
     return (
       <ProfileRequired
         onGoToProfile={() => {

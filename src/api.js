@@ -1307,4 +1307,149 @@ fetch('http://13.125.192.47:8090/api/users/{id}/profile', {
     .catch(err => console.error(err));
 
 
+// 피드백 컨트롤러 API
+// POST: http://13.125.192.47:8090/api/feedback/introduction/ai - 자기소개서 AI 피드백 생성
+// 요청 파라미터: 없음
+// 요청 바디(JSON): { userId: number, resumeContent: string }
+// 응답: 피드백 객체 (feedback: string, userId: number)
+export const createIntroductionAIFeedback = async (userId, resumeContent) => {
+    try {
+        if (!userId || !resumeContent) {
+            throw new Error('userId와 resumeContent는 필수입니다.');
+        }
+
+        const response = await fetch('http://13.125.192.47:8090/api/feedback/introduction/ai', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                resumeContent: resumeContent
+            }),
+        });
+
+        if (!response.ok) {
+            // response.ok가 아닐 경우 콘솔에 status와 message 출력
+            const errorText = await response.text().catch(() => '');
+            const errorJson = await response.json().catch(() => ({}));
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        // 정상인 경우 JSON 데이터 console.log
+        const data = await response.json();
+        console.log('POST /api/feedback/introduction/ai 응답:', data);
+        return data;
+    } catch (error) {
+        // 오류 발생 시 상세 오류를 알 수 있도록 출력
+        console.error('createIntroductionAIFeedback 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            userId: userId,
+            resumeContent: resumeContent
+        });
+        throw error;
+    }
+};
+
+// 자기소개서 AI 피드백 API
+// POST: {VITE_REACT_APP_AI_SERVER}/resume/feedback - 자기소개서 AI 피드백 생성
+// 요청 파라미터: 없음
+// 요청 바디(JSON): { userId: number, resumeContent: string }
+// 응답: 피드백 객체 (feedback: string, userId: number)
+export async function requestResumeFeedback(userId, resumeContent) {
+  try {
+    if (!userId || !resumeContent) {
+      throw new Error('userId와 resumeContent는 필수입니다.');
+    }
+
+    // 서버 연결 시 사용할 주소
+    const aiServerUrl = import.meta.env.VITE_REACT_APP_AI_SERVER || 'http://13.125.192.47:8088';
+    // Swagger 문서에서 확인한 실제 엔드포인트: /resume/resume/feedback
+    const url = `${aiServerUrl}/resume/resume/feedback`;
+
+    console.log('AI 서버 URL:', aiServerUrl);
+    console.log('요청 URL:', url);
+
+    // 서버 연결 시도
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      mode: "cors",
+      credentials: "omit",
+      body: JSON.stringify({ 
+        userId: Number(userId), 
+        resumeContent: String(resumeContent)
+      }),
+    });
+
+    if (!response.ok) {
+      // response body를 한 번만 읽기 (text로 먼저 읽고, JSON 파싱 시도)
+      let errorText = '';
+      let errorJson = null;
+      
+      try {
+        errorText = await response.text();
+        // text가 비어있지 않고 JSON 형식이면 파싱 시도
+        if (errorText && errorText.trim().startsWith('{')) {
+          try {
+            errorJson = JSON.parse(errorText);
+          } catch {
+            // JSON 파싱 실패 시 errorText 그대로 사용
+          }
+        }
+      } catch (textError) {
+        console.warn('응답 body 읽기 실패:', textError);
+      }
+
+      const errorMessage = errorJson?.detail || errorJson?.message || errorJson?.error || errorText || '알 수 없는 오류';
+      
+      console.error('API 오류:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: url,
+        message: errorMessage,
+        errorData: errorJson
+      });
+      
+      // 404 에러인 경우 사용자 친화적인 메시지
+      if (response.status === 404) {
+        throw new Error('서버에서 요청한 경로를 찾을 수 없습니다. 서버 설정을 확인해주세요.');
+      }
+      
+      throw new Error(`서버 오류 (${response.status}): ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    console.log('POST /resume/resume/feedback 응답:', data);
+    return data;
+  } catch (error) {
+    console.error('requestResumeFeedback 오류 상세:', {
+      message: error.message,
+      stack: error.stack,
+      error: error,
+      userId: userId,
+      resumeContentLength: resumeContent?.length || 0
+    });
+    
+    // 연결 타임아웃 에러인 경우 더 명확한 메시지
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION')) {
+      const aiServerUrl = import.meta.env.VITE_REACT_APP_AI_SERVER || 'http://13.125.192.47:8088';
+      throw new Error(`서버에 연결할 수 없습니다. ${aiServerUrl} 서버가 실행 중인지 확인해주세요.`);
+    }
+    
+    throw error;
+  }
+}
+
 export default fetchApi; // 기본 래퍼 함수를 export

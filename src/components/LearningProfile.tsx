@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { getMe } from "../api";
+// 백엔드 API 호출 제거 (localStorage만 사용)
 import { 
   User, 
   GraduationCap, 
@@ -62,48 +62,22 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 사용자 정보 로드 - /me API 사용
+  // 사용자 정보 초기화 - 자동 저장 제거, 항상 빈 값으로 시작
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        setIsLoading(true);
-        setSaveError(null);
-        
-        // GET /me 호출
-        const userData = await getMe();
-        
-        // 응답 매핑: nickname→name, major→major, targetJob→targetJob
-        // ✅ email은 백엔드 값 무시하고 하드코딩 값 사용
-        const newUserInfo = {
-          id: userData.id,
-          name: userData.nickname || "",
-          email: FIXED_EMAIL,
-          major: userData.major || "",
-          targetJob: userData.targetJob || ""
-        };
-        setUserInfo(newUserInfo);
-        
-        // userInfo 기반으로 profileCompleted 계산
-        const isCompleted = calculateProfileCompleted(newUserInfo);
-        setProfileCompleted(isCompleted);
-        
-        // 상위 컴포넌트에 userInfo 변경 알림
-        if (onProfileInfoChange) {
-          onProfileInfoChange({
-            name: newUserInfo.name,
-            major: newUserInfo.major,
-            targetJob: newUserInfo.targetJob
-          });
-        }
-      } catch (error: any) {
-        console.error("사용자 정보 로드 실패:", error);
-        setSaveError("사용자 정보를 불러오는데 실패했습니다.");
-      } finally {
-        setIsLoading(false);
-      }
+    setIsLoading(true);
+    
+    // 항상 빈 값으로 시작 (localStorage에서 자동으로 불러오지 않음)
+    const defaultUserInfo = {
+      id: null as number | null,
+      name: "",
+      email: FIXED_EMAIL,
+      major: "",
+      targetJob: ""
     };
-
-    fetchUserInfo();
+    setUserInfo(defaultUserInfo);
+    setProfileCompleted(false);
+    
+    setIsLoading(false);
   }, []);
 
   const [achievements] = useState([
@@ -228,13 +202,12 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     // profileCompleted를 true로 설정
     setProfileCompleted(true);
     
-    // localStorage 업데이트
+    // localStorage 업데이트 (isComplete 필드 제거, name/major/targetJob만 저장)
     const userProfile = {
       email: FIXED_EMAIL,
       name: editForm.name,
       major: editForm.major,
-      targetJob: editForm.targetJob,
-      isComplete: true
+      targetJob: editForm.targetJob
     };
     localStorage.setItem('userProfile', JSON.stringify(userProfile));
     

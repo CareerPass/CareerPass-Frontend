@@ -1,31 +1,19 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { FileText, Upload, Bot, CheckCircle, Send, User, MessageSquare, Edit3, X } from "lucide-react";
+import { FileText, Upload, Bot, CheckCircle, Edit3, X, AlertCircle } from "lucide-react";
+import { requestResumeFeedback } from "../api";
 
 export function ResumeAI() {
   const [currentStep, setCurrentStep] = useState<'upload' | 'write' | 'analysis' | 'chat'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [directWriteText, setDirectWriteText] = useState('');
-  const [messages, setMessages] = useState<Array<{
-    id: number;
-    type: 'user' | 'ai';
-    content: string;
-    timestamp: string;
-  }>>([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [feedback, setFeedback] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   const handleFileSelect = () => {
     fileInputRef.current?.click();
@@ -41,16 +29,9 @@ export function ResumeAI() {
   const handleFileUpload = () => {
     if (selectedFile) {
       setCurrentStep('analysis');
-      // 분석 시뮬레이션 후 채팅으로 전환
+      // 분석 시뮬레이션 후 결과 페이지로 전환
       setTimeout(() => {
         setCurrentStep('chat');
-        const initialMessage = {
-          id: Date.now(),
-          type: 'ai' as const,
-          content: '자기소개서를 분석했습니다! 어떤 부분에 대해 피드백을 받고 싶으신가요? 예를 들어 "첫 번째 문단을 개선하고 싶어요" 또는 "지원동기 부분이 약한 것 같아요" 등으로 질문해 주세요.',
-          timestamp: new Date().toLocaleTimeString()
-        };
-        setMessages([initialMessage]);
       }, 2000);
     }
   };
@@ -64,58 +45,69 @@ export function ResumeAI() {
     setDirectWriteText('');
   };
 
-  const handleCompleteWrite = () => {
-    if (directWriteText.trim()) {
-      setCurrentStep('analysis');
-      // 분석 시뮬레이션 후 채팅으로 전환
-      setTimeout(() => {
+  const handleCompleteWrite = async () => {
+    const resumeContent = directWriteText.trim();
+    
+    // 빈 입력 체크
+    if (!resumeContent) {
+      setError('자기소개서 내용을 입력해주세요.');
+      return;
+    }
+
+    // userId 가져오기 (없으면 기본값 1 사용)
+    const userIdStr = localStorage.getItem('userId');
+    const userId = userIdStr ? parseInt(userIdStr, 10) : 1;
+    const finalUserId = isNaN(userId) ? 1 : userId;
+
+    // 에러 초기화 및 로딩 시작
+    setError('');
+    setIsAnalyzing(true);
+    setCurrentStep('analysis');
+
+    try {
+      // API 호출
+      const response = await requestResumeFeedback(finalUserId, resumeContent);
+      
+      // 응답에서 feedback 추출
+      if (response && response.feedback) {
+        setFeedback(response.feedback);
         setCurrentStep('chat');
-        const initialMessage = {
-          id: Date.now(),
-          type: 'ai' as const,
-          content: '작성하신 자기소개서를 분석했습니다! 어떤 부분에 대해 피드백을 받고 싶으신가요? 예를 들어 "첫 번째 문단을 개선하고 싶어요" 또는 "지원동기 부분이 약한 것 같아요" 등으로 질문해 주세요.',
-          timestamp: new Date().toLocaleTimeString()
-        };
-        setMessages([initialMessage]);
-      }, 2000);
+      } else {
+        throw new Error('피드백 응답 형식이 올바르지 않습니다.');
+      }
+    } catch (err: any) {
+      console.error('피드백 요청 실패:', err);
+      
+      // 에러 메시지를 사용자 친화적으로 처리
+      let errorMessage = '피드백을 받는 중 오류가 발생했습니다.';
+      
+      if (err.message) {
+        // HTTP 에러 메시지에서 불필요한 부분 제거
+        if (err.message.includes('HTTP error!') || err.message.includes('status:')) {
+          // "HTTP error! status: 404, message: Not Found" 같은 메시지를 간단하게
+          if (err.message.includes('404')) {
+            errorMessage = '서버에서 요청한 경로를 찾을 수 없습니다. 서버 설정을 확인해주세요.';
+          } else if (err.message.includes('500')) {
+            errorMessage = '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+          } else {
+            errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+          }
+        } else if (err.message.includes('연결') || err.message.includes('서버')) {
+          errorMessage = err.message;
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
+      setCurrentStep('write'); // 에러 시 작성 페이지로 돌아가기
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
-
-    const userMessage = {
-      id: Date.now(),
-      type: 'user' as const,
-      content: inputMessage,
-      timestamp: new Date().toLocaleTimeString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-
-    // AI 응답 시뮬레이션
-    setTimeout(() => {
-      const aiResponses = [
-        "문단의 시작 부분을 경험이나 성취로 시작하면 더 돋보입니다. 구체적인 수치나 결과를 포함해서 '○○ 프로젝트에서 △△ 역할을 맡아 ××% 성과를 달성했습니다'와 같이 작성해보세요.",
-        "지원동기는 회사에 대한 구체적인 이해를 바탕으로 작성하는 것이 좋습니다. '해당 회사의 ○○ 가치와 제가 추구하는 △△가 일치한다'는 식으로 연결점을 찾아보세요.",
-        "경험을 서술할 때는 STAR 기법(Situation, Task, Action, Result)을 활용해보세요. 상황 → 과제 → 행동 → 결과 순으로 구조화하면 더 설득력 있게 전달됩니다.",
-        "전체적으로 좋은 내용이지만, 더 개인적이고 차별화된 스토리를 포함하면 어떨까요? 다른 지원자와 구별되는 특별한 경험이나 관점을 강조해보세요."
-      ];
-
-      const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)];
-      
-      const aiMessage = {
-        id: Date.now() + 1,
-        type: 'ai' as const,
-        content: randomResponse,
-        timestamp: new Date().toLocaleTimeString()
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
-
-    setInputMessage('');
-  };
 
   // 직접 작성하기 페이지
   if (currentStep === 'write') {
@@ -140,10 +132,19 @@ export function ResumeAI() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
             <Textarea
               placeholder="자기소개서를 입력하세요..."
               value={directWriteText}
-              onChange={(e) => setDirectWriteText(e.target.value)}
+              onChange={(e) => {
+                setDirectWriteText(e.target.value);
+                setError(''); // 입력 시 에러 메시지 제거
+              }}
               className="min-h-[300px] resize-none border-2 rounded-xl focus:border-primary/50 transition-colors"
               maxLength={2000}
             />
@@ -157,17 +158,18 @@ export function ResumeAI() {
                   variant="outline" 
                   onClick={handleCancelWrite}
                   className="px-6"
+                  disabled={isAnalyzing}
                 >
                   <X className="w-4 h-4 mr-2" />
                   취소
                 </Button>
                 <Button 
                   onClick={handleCompleteWrite}
-                  disabled={!directWriteText.trim()}
+                  disabled={!directWriteText.trim() || isAnalyzing}
                   className="px-6"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  작성 완료
+                  {isAnalyzing ? '분석 중...' : '분석하기'}
                 </Button>
               </div>
             </div>
@@ -222,7 +224,7 @@ export function ResumeAI() {
           <CardContent className="text-center space-y-6">
             <div className="animate-spin w-16 h-16 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
             <div className="space-y-2">
-              <h3 className="font-medium">자기소개서를 분석하고 있습니다</h3>
+              <h3 className="font-medium">AI 분석 중입니다...</h3>
               <p className="text-muted-foreground">잠시만 기다려주세요. 곧 맞춤형 피드백을 제공해드리겠습니다.</p>
             </div>
           </CardContent>
@@ -231,20 +233,20 @@ export function ResumeAI() {
     );
   }
 
-  // 채팅 인터페이스 (기존 코드)
+  // 분석 결과 페이지 (채팅 기능 제거)
   if (currentStep === 'chat') {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
           <h1 className="text-primary flex items-center gap-2">
-            <MessageSquare className="w-8 h-8" />
+            <Bot className="w-8 h-8" />
             자기소개서 AI 피드백
           </h1>
-          <p className="text-muted-foreground">AI와 대화하며 자소서를 완성해보세요</p>
+          <p className="text-muted-foreground">AI가 분석한 자기소개서 피드백 결과입니다</p>
         </div>
 
-        {/* AI 초기 피드백 */}
-        <Card className="border-2 rounded-xl mb-6">
+        {/* AI 분석 결과 */}
+        <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="w-5 h-5 text-primary" />
@@ -252,125 +254,21 @@ export function ResumeAI() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">📋 전체적인 분석</h4>
-              <p className="text-blue-800">
-                전체적으로 경험을 구체적으로 잘 서술하셨습니다. 특히 프로젝트 성과를 수치로 표현한 부분이 인상적입니다. 
-                다만 지원동기 부분에서 회사에 대한 이해도를 더 보여주시면 좋겠습니다.
-              </p>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <h4 className="font-medium text-green-900 mb-2">✅ 강점</h4>
-              <ul className="text-green-800 list-disc list-inside space-y-1">
-                <li>구체적인 성과 지표 활용 (예: 30% 향상, 15명 협업)</li>
-                <li>STAR 기법을 활용한 체계적인 경험 서술</li>
-                <li>전공 지식과 실무 역량의 연결성</li>
-              </ul>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <h4 className="font-medium text-yellow-900 mb-2">💡 개선 제안</h4>
-              <ul className="text-yellow-800 list-disc list-inside space-y-1">
-                <li>지원동기에서 회사의 핵심 가치와 본인의 목표 연결</li>
-                <li>첫 문단을 더 임팩트 있게 시작하는 방법 고려</li>
-                <li>차별화된 개인적 경험이나 관점 추가</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 채팅 인터페이스 */}
-        <Card className="border-2 rounded-xl h-[600px] flex flex-col">
-          <CardHeader className="border-b bg-muted/30">
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5 text-primary" />
-              AI 어시스턴트
-            </CardTitle>
-            <CardDescription>
-              자기소개서에 대해 궁금한 점을 자유롭게 질문해보세요
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${
-                  message.type === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                {message.type === 'ai' && (
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <Bot className="w-4 h-4 text-primary" />
-                  </div>
-                )}
-                <div
-                  className={`max-w-[70%] p-3 rounded-lg ${
-                    message.type === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                  }`}
+            {feedback ? (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
+                <div 
+                  className="text-blue-800 whitespace-pre-wrap break-words"
+                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                 >
-                  <p className="text-sm">{message.content}</p>
-                  <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
+                  {feedback}
                 </div>
-                {message.type === 'user' && (
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <User className="w-4 h-4 text-primary" />
-                  </div>
-                )}
               </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </CardContent>
-
-          <div className="border-t p-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="자소서에 대해 궁금한 점을 질문해보세요..."
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                className="flex-1"
-              />
-              <Button 
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
-              >
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        {/* 추천 질문 */}
-        <Card className="border-2 rounded-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-primary" />
-              추천 질문
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2">
-              {[
-                "첫 번째 문단이 너무 평범한가요?",
-                "지원동기를 더 구체적으로 쓰려면 어떻게 해야 하나요?",
-                "경험을 어필하는 더 좋은 방법이 있을까요?",
-                "전체적인 구성에 문제가 없는지 확인해주세요"
-              ].map((question, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  className="justify-start h-auto p-3 text-left"
-                  onClick={() => {
-                    setInputMessage(question);
-                    handleSendMessage();
-                  }}
-                >
-                  {question}
-                </Button>
-              ))}
-            </div>
+            ) : (
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-gray-600">피드백을 불러오는 중...</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
