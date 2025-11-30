@@ -10,6 +10,7 @@ import { LearningProfile } from "./LearningProfile";
 import { ResumeAI } from "./ResumeAI";
 import { InterviewAI } from "./InterviewAI";
 import { ProfileRequired } from "./ProfileRequired";
+import { ProfileSetupRequiredDialog } from "./ProfileSetupRequiredDialog";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { GraduationCap, MapPin, BookOpen, Award, LogOut, User, FileText, Mic, Home } from "lucide-react";
@@ -23,7 +24,7 @@ interface CareerPackAppProps {
   onPageChange: (page: PageType) => void;
   onLogout: () => void;
   onProfileComplete?: () => void;
-  api: any;
+  api?: any;
 }
 
 export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileComplete, api }: CareerPackAppProps) {
@@ -33,11 +34,35 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
   const [roadmapType, setRoadmapType] = useState<"subject" | "certification" | "">("");
   const [showInterviewDetail, setShowInterviewDetail] = useState(false);
   const [showResumeDetail, setShowResumeDetail] = useState(false);
+  const [showProfileSetupDialog, setShowProfileSetupDialog] = useState(false);
 
   // 사용자 정보 상태 관리
   const [user, setUser] = useState<any>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [meError, setMeError] = useState<string | null>(null);
+  
+  // 학습프로필 정보 상태 (LearningProfile에서 업데이트됨)
+  const [profileInfo, setProfileInfo] = useState<{
+    name: string;
+    major: string;
+    targetJob: string;
+  } | null>(null);
+  
+  // 학습프로필 완료 여부 계산 함수
+  const isProfileCompleted = (): boolean => {
+    if (!profileInfo) {
+      // profileInfo가 없으면 user 정보로 판단
+      if (user) {
+        return !!(user.nickname && user.nickname.trim() !== "" &&
+                  user.major && user.major.trim() !== "" &&
+                  user.targetJob && user.targetJob.trim() !== "");
+      }
+      return false;
+    }
+    return !!(profileInfo.name && profileInfo.name.trim() !== "" &&
+              profileInfo.major && profileInfo.major.trim() !== "" &&
+              profileInfo.targetJob && profileInfo.targetJob.trim() !== "");
+  };
 
   const selectedDeptData = departments.find(dept => dept.id === selectedDepartment);
   const availableJobs = selectedDeptData?.jobs || [];
@@ -188,10 +213,20 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
   useEffect(() => {
     initUser();
   }, []);
+  
+  // user 정보가 변경되면 profileInfo도 업데이트
+  useEffect(() => {
+    if (user) {
+      setProfileInfo({
+        name: user.nickname || "",
+        major: user.major || "",
+        targetJob: user.targetJob || ""
+      });
+    }
+  }, [user]);
 
   // 기존 코드 호환성을 위해 me를 user의 alias로 사용
   const me = user;
-  const isProfileCompleted = me ? !!me.profileCompleted : false;
 
   // 프로필 완료 후 profileCompleted를 true로 설정
   const handleProfileComplete = () => {
@@ -205,6 +240,23 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
     if (onProfileComplete) {
       onProfileComplete();
     }
+  };
+  
+  // 학습프로필 정보 변경 핸들러
+  const handleProfileInfoChange = (info: { name: string; major: string; targetJob: string }) => {
+    setProfileInfo(info);
+  };
+  
+  // 페이지 변경 핸들러 (학습프로필 미완성 체크 포함)
+  const handlePageChangeWithCheck = (page: PageType) => {
+    // roadmap, resume, interview 접근 시 학습프로필 완료 여부 확인
+    if ((page === 'roadmap' || page === 'resume' || page === 'interview') && !isProfileCompleted()) {
+      setShowProfileSetupDialog(true);
+      return;
+    }
+    
+    // 학습프로필 완료되었거나 profile 페이지인 경우 정상 이동
+    onPageChange(page);
   };
 
   // Reset job selection when department changes
@@ -436,7 +488,13 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
       return <InterviewAI />;
     }
     if (currentPage === 'profile') {
-      return <LearningProfile userId={me?.id} onProfileComplete={handleProfileComplete} />;
+      return (
+        <LearningProfile 
+          userId={me?.id} 
+          onProfileComplete={handleProfileComplete}
+          onProfileInfoChange={handleProfileInfoChange}
+        />
+      );
     }
 
     // 로드맵 페이지의 경우 섹션에 따라 다르게 렌더링
@@ -486,11 +544,12 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
     );
   }
 
-  // 프로필 미완료 시 ProfileRequired 화면 강제 표시
+  // 프로필 미완료 시 ProfileRequired 화면 강제 표시 (기존 로직 유지)
   // 단, 현재 경로가 'profile' (learning-profile)일 때는 예외로 하고 LearningProfile을 바로 보여주기
+  // 학습프로필 완료 여부는 isProfileCompleted()로 판단
   if (
     user &&
-    user.profileCompleted === false &&
+    !isProfileCompleted() &&
     currentPage !== 'profile'
   ) {
     return (
@@ -524,8 +583,10 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
                 variant={currentPage === 'roadmap' ? "default" : "ghost"}
                 className={currentPage === 'roadmap' ? "bg-[#051243] text-white hover:bg-[#051243]/90" : "hover:bg-gray-100 hover:text-[#051243]"}
                 onClick={() => {
-                  onPageChange('roadmap');
-                  setCurrentSection('dashboard');
+                  if (currentPage === 'roadmap') {
+                    setCurrentSection('dashboard');
+                  }
+                  handlePageChangeWithCheck('roadmap');
                 }}
               >
                 <MapPin className="w-4 h-4 mr-2" />
@@ -534,7 +595,7 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
               <Button
                 variant={currentPage === 'resume' ? "default" : "ghost"}
                 className={currentPage === 'resume' ? "bg-[#051243] text-white hover:bg-[#051243]/90" : "hover:bg-gray-100 hover:text-[#051243]"}
-                onClick={() => onPageChange('resume')}
+                onClick={() => handlePageChangeWithCheck('resume')}
               >
                 <FileText className="w-4 h-4 mr-2" />
                 자기소개서 AI
@@ -542,7 +603,7 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
               <Button
                 variant={currentPage === 'interview' ? "default" : "ghost"}
                 className={currentPage === 'interview' ? "bg-[#051243] text-white hover:bg-[#051243]/90" : "hover:bg-gray-100 hover:text-[#051243]"}
-                onClick={() => onPageChange('interview')}
+                onClick={() => handlePageChangeWithCheck('interview')}
               >
                 <Mic className="w-4 h-4 mr-2" />
                 AI 모의면접
@@ -606,6 +667,16 @@ export function CareerPackApp({ currentPage, onPageChange, onLogout, onProfileCo
       <main className="max-w-[1400px] mx-auto p-8">
         {renderMainContent()}
       </main>
+      
+      {/* 학습프로필 설정 안내 팝업 */}
+      <ProfileSetupRequiredDialog
+        isOpen={showProfileSetupDialog}
+        onClose={() => setShowProfileSetupDialog(false)}
+        onGoToProfile={() => {
+          onPageChange('profile');
+          setShowProfileSetupDialog(false);
+        }}
+      />
     </div>
   );
 }

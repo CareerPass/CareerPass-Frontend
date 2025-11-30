@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { getMe, updateUserProfile } from "../api";
+import { getMe } from "../api";
 import { 
   User, 
   GraduationCap, 
@@ -26,22 +26,33 @@ import {
 interface LearningProfileProps {
   userId?: number;
   onProfileComplete?: () => void;
+  onProfileInfoChange?: (userInfo: { name: string; major: string; targetJob: string }) => void;
 }
 
-export function LearningProfile({ userId, onProfileComplete }: LearningProfileProps = {}) {
+// ✅ 이메일 하드코딩
+const FIXED_EMAIL = "jiyun1430@mju.ac.kr";
+
+export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange }: LearningProfileProps = {}) {
   const [userInfo, setUserInfo] = useState({
     id: null as number | null,
     name: "",
-    email: "",
+    email: FIXED_EMAIL,
     major: "",
     targetJob: ""
   });
+  // 학습프로필 완료 여부 계산 함수
+  const calculateProfileCompleted = (info: typeof userInfo): boolean => {
+    return !!(info.name && info.name.trim() !== "" && 
+              info.major && info.major.trim() !== "" && 
+              info.targetJob && info.targetJob.trim() !== "");
+  };
+
   const [profileCompleted, setProfileCompleted] = useState(false);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
-    email: "",
+    email: FIXED_EMAIL,
     major: "",
     targetJob: ""
   });
@@ -61,17 +72,29 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
         // GET /me 호출
         const userData = await getMe();
         
-        // 응답 매핑: nickname→name, email→email, major→major, targetJob→targetJob
-        setUserInfo({
+        // 응답 매핑: nickname→name, major→major, targetJob→targetJob
+        // ✅ email은 백엔드 값 무시하고 하드코딩 값 사용
+        const newUserInfo = {
           id: userData.id,
           name: userData.nickname || "",
-          email: userData.email || "",
+          email: FIXED_EMAIL,
           major: userData.major || "",
           targetJob: userData.targetJob || ""
-        });
+        };
+        setUserInfo(newUserInfo);
         
-        // profileCompleted 상태 설정
-        setProfileCompleted(userData.profileCompleted || false);
+        // userInfo 기반으로 profileCompleted 계산
+        const isCompleted = calculateProfileCompleted(newUserInfo);
+        setProfileCompleted(isCompleted);
+        
+        // 상위 컴포넌트에 userInfo 변경 알림
+        if (onProfileInfoChange) {
+          onProfileInfoChange({
+            name: newUserInfo.name,
+            major: newUserInfo.major,
+            targetJob: newUserInfo.targetJob
+          });
+        }
       } catch (error: any) {
         console.error("사용자 정보 로드 실패:", error);
         setSaveError("사용자 정보를 불러오는데 실패했습니다.");
@@ -176,10 +199,9 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
 
   const handleEditProfile = () => {
     // 모달 열 때 입력 필드 초기값 설정
-    // nickname이 null이면 빈 문자열, 그 외에는 현재 값 사용
     setEditForm({
       name: userInfo.name || "",
-      email: userInfo.email || "",
+      email: FIXED_EMAIL, // ✅ 항상 고정 이메일
       major: userInfo.major || "",
       targetJob: userInfo.targetJob || ""
     });
@@ -187,53 +209,54 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
     setShowEditProfile(true);
   };
 
-  const handleSaveProfile = async () => {
-    // userInfo.id가 없으면 에러 처리
-    if (!userInfo.id) {
-      setSaveError("사용자 ID가 없습니다. 다시 로그인 후 시도해주세요.");
-      return;
-    }
-
-    // isSaving = true, saveError 초기화
+  const handleSaveProfile = () => {
+    // isSaving = true
     setIsSaving(true);
-    setSaveError(null);
 
-    try {
-      // PATCH /api/users/{id}/profile 호출
-      // email은 body에 포함하지 않음
-      await updateUserProfile(userInfo.id, {
-        nickname: editForm.name,
-        major: editForm.major,
-        targetJob: editForm.targetJob,
+    // 프론트 상태만 갱신 (백엔드 API 호출 없음)
+    const newUserInfo = {
+      id: userInfo.id,
+      name: editForm.name,
+      email: FIXED_EMAIL, // 하드코딩된 이메일
+      major: editForm.major,
+      targetJob: editForm.targetJob
+    };
+    
+    // userInfo 상태 업데이트
+    setUserInfo(newUserInfo);
+    
+    // profileCompleted를 true로 설정
+    setProfileCompleted(true);
+    
+    // localStorage 업데이트
+    const userProfile = {
+      email: FIXED_EMAIL,
+      name: editForm.name,
+      major: editForm.major,
+      targetJob: editForm.targetJob,
+      isComplete: true
+    };
+    localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    
+    // 상위 컴포넌트에 userInfo 변경 알림
+    if (onProfileInfoChange) {
+      onProfileInfoChange({
+        name: newUserInfo.name,
+        major: newUserInfo.major,
+        targetJob: newUserInfo.targetJob
       });
-
-      // 저장 성공 후 /me를 다시 호출해서 최신 데이터로 갱신
-      const updatedUserData = await getMe();
-      
-      setUserInfo({
-        id: updatedUserData.id,
-        name: updatedUserData.nickname || "",
-        email: updatedUserData.email || "",
-        major: updatedUserData.major || "",
-        targetJob: updatedUserData.targetJob || ""
-      });
-      
-      // profileCompleted 값도 함께 갱신
-      setProfileCompleted(updatedUserData.profileCompleted || false);
-
-      // 모달 닫기
-      setShowEditProfile(false);
-
-      // 프로필 설정 완료 콜백 호출 → 상위에서 profileCompleted = true로 반영
-      if (onProfileComplete) {
-        onProfileComplete();
-      }
-    } catch (error: any) {
-      console.error("프로필 저장 실패:", error);
-      setSaveError(error.message || "프로필 저장 중 오류가 발생했습니다.");
-    } finally {
-      setIsSaving(false);
     }
+
+    // 모달 닫기
+    setShowEditProfile(false);
+
+    // 프로필 설정 완료 콜백 호출
+    if (onProfileComplete) {
+      onProfileComplete();
+    }
+    
+    // isSaving = false
+    setIsSaving(false);
   };
 
   const handleInterviewClick = () => {
@@ -462,7 +485,7 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
           </CardContent>
         </Card>
 
-        {/* AI 분석 ��과 */}
+        {/* AI 분석 결과 */}
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -639,13 +662,6 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* 에러 메시지 표시 */}
-              {saveError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{saveError}</p>
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label>이름</Label>
                 <Input 
