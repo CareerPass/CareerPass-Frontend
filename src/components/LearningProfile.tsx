@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { getUserById, updateUserProfile } from "../api";
+import { getMe, updateUserProfile } from "../api";
 import { 
   User, 
   GraduationCap, 
@@ -30,15 +30,18 @@ interface LearningProfileProps {
 
 export function LearningProfile({ userId, onProfileComplete }: LearningProfileProps = {}) {
   const [userInfo, setUserInfo] = useState({
+    id: null as number | null,
     name: "",
     email: "",
     major: "",
     targetJob: ""
   });
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
+    email: "",
     major: "",
     targetJob: ""
   });
@@ -48,34 +51,27 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 사용자 정보 로드
+  // 사용자 정보 로드 - /me API 사용
   useEffect(() => {
     const fetchUserInfo = async () => {
-      const storedUserId = localStorage.getItem('userId');
-      const targetUserId = userId || (storedUserId ? parseInt(storedUserId) : null);
-      
-      if (!targetUserId) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
         setIsLoading(true);
-        const userData = await getUserById(targetUserId);
+        setSaveError(null);
+        
+        // GET /me 호출
+        const userData = await getMe();
         
         // 응답 매핑: nickname→name, email→email, major→major, targetJob→targetJob
         setUserInfo({
+          id: userData.id,
           name: userData.nickname || "",
           email: userData.email || "",
           major: userData.major || "",
           targetJob: userData.targetJob || ""
         });
         
-        setEditForm({
-          name: userData.nickname || "",
-          major: userData.major || "",
-          targetJob: userData.targetJob || ""
-        });
+        // profileCompleted 상태 설정
+        setProfileCompleted(userData.profileCompleted || false);
       } catch (error: any) {
         console.error("사용자 정보 로드 실패:", error);
         setSaveError("사용자 정보를 불러오는데 실패했습니다.");
@@ -85,7 +81,7 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
     };
 
     fetchUserInfo();
-  }, [userId]);
+  }, []);
 
   const [achievements] = useState([
     {
@@ -179,21 +175,21 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
   ]);
 
   const handleEditProfile = () => {
+    // 모달 열 때 입력 필드 초기값 설정
+    // nickname이 null이면 빈 문자열, 그 외에는 현재 값 사용
     setEditForm({
-      name: userInfo.name,
-      major: userInfo.major,
-      targetJob: userInfo.targetJob
+      name: userInfo.name || "",
+      email: userInfo.email || "",
+      major: userInfo.major || "",
+      targetJob: userInfo.targetJob || ""
     });
     setSaveError(null); // 에러 상태 초기화
     setShowEditProfile(true);
   };
 
   const handleSaveProfile = async () => {
-    // userId가 없으면 에러 처리
-    const storedUserId = localStorage.getItem('userId');
-    const targetUserId = userId || (storedUserId ? parseInt(storedUserId) : null);
-    
-    if (!targetUserId) {
+    // userInfo.id가 없으면 에러 처리
+    if (!userInfo.id) {
       setSaveError("사용자 ID가 없습니다. 다시 로그인 후 시도해주세요.");
       return;
     }
@@ -203,20 +199,27 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
     setSaveError(null);
 
     try {
-      // updateUserProfile 호출
-      await updateUserProfile(targetUserId, {
+      // PATCH /api/users/{id}/profile 호출
+      // email은 body에 포함하지 않음
+      await updateUserProfile(userInfo.id, {
         nickname: editForm.name,
         major: editForm.major,
         targetJob: editForm.targetJob,
       });
 
-      // PATCH 성공 후, 프론트 상태(userInfo) 갱신
-      setUserInfo((prev) => ({
-        ...prev,
-        name: editForm.name,
-        major: editForm.major,
-        targetJob: editForm.targetJob,
-      }));
+      // 저장 성공 후 /me를 다시 호출해서 최신 데이터로 갱신
+      const updatedUserData = await getMe();
+      
+      setUserInfo({
+        id: updatedUserData.id,
+        name: updatedUserData.nickname || "",
+        email: updatedUserData.email || "",
+        major: updatedUserData.major || "",
+        targetJob: updatedUserData.targetJob || ""
+      });
+      
+      // profileCompleted 값도 함께 갱신
+      setProfileCompleted(updatedUserData.profileCompleted || false);
 
       // 모달 닫기
       setShowEditProfile(false);
@@ -649,6 +652,16 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
                   value={editForm.name}
                   onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                   disabled={isSaving}
+                  placeholder="이름을 입력하세요"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>이메일</Label>
+                <Input 
+                  value={editForm.email}
+                  readOnly
+                  disabled
+                  className="bg-muted cursor-not-allowed"
                 />
               </div>
               <div className="space-y-2">
@@ -657,6 +670,7 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
                   value={editForm.major}
                   onChange={(e) => setEditForm({...editForm, major: e.target.value})}
                   disabled={isSaving}
+                  placeholder="전공을 입력하세요"
                 />
               </div>
               <div className="space-y-2">
@@ -665,6 +679,7 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
                   value={editForm.targetJob}
                   onChange={(e) => setEditForm({...editForm, targetJob: e.target.value})}
                   disabled={isSaving}
+                  placeholder="목표 직무를 입력하세요"
                 />
               </div>
               <div className="flex gap-2 pt-4">
@@ -725,10 +740,30 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
           </div>
         </CardHeader>
         <CardContent>
+          {/* 학습프로필 미설정 시 안내 문구 */}
+          {!profileCompleted && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-yellow-800">
+                  기능을 이용하시려면 학습프로필을 먼저 등록해주세요.
+                </p>
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={handleEditProfile}
+                  className="ml-4 flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  학습프로필 설정
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">이름</p>
-              <p className="font-medium">{userInfo.name}</p>
+              <p className="font-medium">{userInfo.name || "이름 미설정"}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">이메일</p>
@@ -736,11 +771,11 @@ export function LearningProfile({ userId, onProfileComplete }: LearningProfilePr
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">전공</p>
-              <p className="font-medium">{userInfo.major}</p>
+              <p className="font-medium">{userInfo.major || "전공 미설정"}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">목표 직무</p>
-              <p className="font-medium">{userInfo.targetJob}</p>
+              <p className="font-medium">{userInfo.targetJob || "목표 직무 미설정"}</p>
             </div>
           </div>
         </CardContent>
