@@ -36,7 +36,7 @@ export function InterviewAI() {
     setJobInput("");
   };
 
-  const [showResumeUpload, setShowResumeUpload] = useState(false);
+  const [showResumeUpload, setShowResumeUpload] = useState(true);
   const timerRef = useRef<NodeJS.Timeout>();
 
   const questions = fetchedQuestions;
@@ -713,39 +713,33 @@ export function InterviewAI() {
 
       
       <Card className="border-2 rounded-xl">
-        <CardHeader className="py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              <CardTitle>자기소개서 기반 면접</CardTitle>
+        <CardHeader className="min-h-[200px]">
+          <div className="flex items-center justify-between h-full">
+            <div className="flex flex-col justify-center gap-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                <CardTitle>자기소개서 기반 면접</CardTitle>
+              </div>
+              <CardDescription className="mt-0">
+                자기소개서를 업로드하면 내용을 바탕으로 맞춤형 질문을 받을 수 있습니다
+              </CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowResumeUpload(!showResumeUpload)}
-            >
-              {showResumeUpload ? "접기" : "펼치기"}
-            </Button>
           </div>
-          <CardDescription className="mt-2">
-            자기소개서를 업로드하면 내용을 바탕으로 맞춤형 질문을 받을 수 있습니다
-          </CardDescription>
         </CardHeader>
-        {showResumeUpload && (
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
+        <CardContent className="space-y-8 py-8">
+            <div className="space-y-4">
               <Label htmlFor="resume">자기소개서 내용</Label>
               <Textarea
                 id="resume"
                 placeholder="자기소개서 내용을 입력해주세요..."
                 value={resumeText}
                 onChange={(e) => setResumeText(e.target.value)}
-                rows={12}
+                rows={22}
                 className="resize-none"
               />
             </div>
             {resumeText.trim() && (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <div className="bg-green-50 p-6 rounded-lg border border-green-200">
                 <div className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-green-600 mt-0.5" />
                   <div>
@@ -756,49 +750,8 @@ export function InterviewAI() {
               </div>
             )}
           </CardContent>
-        )}
       </Card>
 
-      
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-              <span>기본 면접</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              일반적인 면접 질문으로 구성된 기본 모의면접을 진행합니다.
-            </CardDescription>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">자기소개</span>
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">지원동기</span>
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">강점/약점</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-              <span>직무별 면접</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              선택한 직무에 특화된 전문 질문으로 구성된 모의면접입니다.
-            </CardDescription>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">기술면접</span>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">상황판단</span>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">문제해결</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       
       <Card>

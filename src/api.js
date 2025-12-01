@@ -1374,67 +1374,86 @@ export async function requestResumeFeedback(userId, resumeContent) {
 
     // 서버 연결 시 사용할 주소
     const aiServerUrl = import.meta.env.VITE_REACT_APP_AI_SERVER || 'http://13.125.192.47:8088';
-    // Swagger 문서에서 확인한 실제 엔드포인트: /resume/resume/feedback
-    const url = `${aiServerUrl}/resume/resume/feedback`;
-
-    console.log('AI 서버 URL:', aiServerUrl);
-    console.log('요청 URL:', url);
-
-    // 서버 연결 시도
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      mode: "cors",
-      credentials: "omit",
-      body: JSON.stringify({ 
-        userId: Number(userId), 
-        resumeContent: String(resumeContent)
-      }),
-    });
-
-    if (!response.ok) {
-      // response body를 한 번만 읽기 (text로 먼저 읽고, JSON 파싱 시도)
-      let errorText = '';
-      let errorJson = null;
+    
+    // 가능한 엔드포인트 경로들 (서버 설정에 따라 다를 수 있음)
+    const possiblePaths = [
+      '/api/feedback/introduction/ai',  // 사용자 제공 정보
+      '/feedback/introduction/ai',      // base URL에 /api가 포함된 경우
+      '/resume/resume/feedback'          // 이전에 사용했던 경로
+    ];
+    
+    let lastError = null;
+    
+    // 각 경로를 순차적으로 시도
+    for (const path of possiblePaths) {
+      const url = `${aiServerUrl}${path}`;
+      
+      console.log(`시도 중: ${url}`);
       
       try {
-        errorText = await response.text();
-        // text가 비어있지 않고 JSON 형식이면 파싱 시도
-        if (errorText && errorText.trim().startsWith('{')) {
-          try {
-            errorJson = JSON.parse(errorText);
-          } catch {
-            // JSON 파싱 실패 시 errorText 그대로 사용
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          mode: "cors",
+          credentials: "omit",
+          body: JSON.stringify({ 
+            userId: Number(userId), 
+            resumeContent: String(resumeContent)
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // 응답 구조: { userId: number, feedback: string, original_resume: string, regen_resume: string }
+          // 백엔드에서 snake_case로 오는 것을 camelCase로 매핑
+          const mappedData = {
+            userId: data.userId || data.user_id || 0,
+            originalResume: data.original_resume || data.originalResume || '',
+            feedback: data.feedback || '',
+            regenResume: data.regen_resume || data.regenResume || ''
+          };
+          console.log(`성공: ${url}`, mappedData);
+          return mappedData;
+        } else {
+          // 404가 아닌 다른 에러면 즉시 throw
+          if (response.status !== 404) {
+            let errorText = '';
+            let errorJson = null;
+            
+            try {
+              errorText = await response.text();
+              if (errorText && errorText.trim().startsWith('{')) {
+                try {
+                  errorJson = JSON.parse(errorText);
+                } catch {}
+              }
+            } catch {}
+            
+            const errorMessage = errorJson?.detail || errorJson?.message || errorJson?.error || errorText || '알 수 없는 오류';
+            throw new Error(`서버 오류 (${response.status}): ${errorMessage}`);
           }
+          
+          // 404인 경우 다음 경로 시도
+          lastError = new Error(`경로를 찾을 수 없습니다: ${path}`);
+          console.warn(`404 에러: ${path}, 다음 경로 시도...`);
+          continue;
         }
-      } catch (textError) {
-        console.warn('응답 body 읽기 실패:', textError);
+      } catch (fetchError) {
+        // 네트워크 에러가 아닌 경우 (404 등) 다음 경로 시도
+        if (fetchError.message && !fetchError.message.includes('Failed to fetch') && !fetchError.message.includes('ERR_CONNECTION')) {
+          lastError = fetchError;
+          continue;
+        }
+        // 네트워크 에러면 즉시 throw
+        throw fetchError;
       }
-
-      const errorMessage = errorJson?.detail || errorJson?.message || errorJson?.error || errorText || '알 수 없는 오류';
-      
-      console.error('API 오류:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: url,
-        message: errorMessage,
-        errorData: errorJson
-      });
-      
-      // 404 에러인 경우 사용자 친화적인 메시지
-      if (response.status === 404) {
-        throw new Error('서버에서 요청한 경로를 찾을 수 없습니다. 서버 설정을 확인해주세요.');
-      }
-      
-      throw new Error(`서버 오류 (${response.status}): ${errorMessage}`);
     }
-
-    const data = await response.json();
-    console.log('POST /resume/resume/feedback 응답:', data);
-    return data;
+    
+    // 모든 경로 실패 시
+    throw lastError || new Error('모든 엔드포인트 경로 시도 실패. 서버 설정을 확인해주세요.');
   } catch (error) {
     console.error('requestResumeFeedback 오류 상세:', {
       message: error.message,

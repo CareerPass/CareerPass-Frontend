@@ -21,9 +21,12 @@ import {
   Settings,
   X,
   ArrowLeft,
-  AlertCircle
+  AlertCircle,
+  Bot,
+  Brain
 } from "lucide-react";
 import { fetchUserLearningProfile, updateUserProfile, getFeedbackByIntroductionId } from "../api";
+import ReactMarkdown from "react-markdown";
 
 interface LearningProfileProps {
   userId?: number;
@@ -156,11 +159,33 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     try {
       setIsLoadingIntroductions(true);
       const profile = await fetchUserLearningProfile(1);
-      setRecentIntroductions(profile.recentIntroductions ?? []);
+      const backendData = profile.recentIntroductions ?? [];
+      
+      // 하드코딩된 기본 데이터 (항상 표시)
+      const hardcodedItem = {
+        introductionId: 1,
+        title: null,
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')
+      };
+      
+      // 백엔드 데이터가 있으면 하드코딩 데이터와 병합, 없으면 하드코딩 데이터만 사용
+      if (backendData.length > 0) {
+        // 하드코딩 데이터가 중복되지 않도록 필터링 후 병합
+        const filteredBackend = backendData.filter(item => item.introductionId !== 1);
+        setRecentIntroductions([hardcodedItem, ...filteredBackend]);
+      } else {
+        // 백엔드 데이터가 없으면 하드코딩 데이터만 사용
+        setRecentIntroductions([hardcodedItem]);
+      }
     } catch (e) {
       console.error('자기소개서 리스트 로드 실패:', e);
-      // 에러 발생 시 빈 배열로 설정
-      setRecentIntroductions([]);
+      // 에러 발생 시에도 하드코딩된 데이터는 항상 표시
+      const hardcodedItem = {
+        introductionId: 1,
+        title: null,
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')
+      };
+      setRecentIntroductions([hardcodedItem]);
     } finally {
       setIsLoadingIntroductions(false);
     }
@@ -186,13 +211,6 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     };
   }, []);
 
-  // 3) 최근 자기소개서 피드백 불러오기
-  useEffect(() => {
-    const lastId = localStorage.getItem("lastIntroductionId");
-    if (lastId) {
-      getFeedbackByIntroductionId(Number(lastId)).then(setIntroFeedbacks);
-    }
-  }, []);
 
   const [achievements] = useState([
     {
@@ -240,40 +258,96 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     }
   ]);
 
+  // 하드코딩된 면접 기록 (컴퓨터공학과, 시스템소프트웨어 개발자)
   const [recentInterviews] = useState([
     {
-      date: "2024.12.18",
-      company: "네이버",
-      position: "백엔드 개발자",
-      feedback: "기술적 지식은 우수하나 소통 능력 개선 필요",
-      rating: 3.5
-    },
-    {
-      date: "2024.12.12",
-      company: "카카오",
-      position: "서버 개발자", 
-      feedback: "문제 해결 능력이 뛰어나고 학습 의욕이 높음",
-      rating: 4.2
-    },
-    {
-      date: "2024.12.05",
-      company: "토스",
-      position: "백엔드 엔지니어",
-      feedback: "프로젝트 경험을 더 쌓아서 실무 역량 강화 권장",
-      rating: 3.8
+      id: 1,
+      date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, ''),
+      company: "시스템소프트웨어 개발자",
+      position: "시스템소프트웨어 개발자",
+      major: "컴퓨터공학과",
+      feedback: "백엔드 개발자로서의 목표 의식과 기술적 깊이가 잘 드러났으며, 데이터 기반 문제 해결 능력이 인상적입니다.",
+      rating: 4.5
     }
   ]);
+  
+  // 면접 상세 데이터 (하드코딩)
+  const hardcodedInterviewData = {
+    questions: [
+      "백엔드 개발자를 목표로 하게 된 이유와 '사용자가 보지 못하는 곳의 안정성을 책임지는 사람'이라는 표현에 대한 생각을 말씀해주세요.",
+      "팀 프로젝트에서 '백엔드는 서비스의 중심축'이라는 생각으로 협업에 참여하셨다고 하셨는데, 구체적인 경험과 역할을 설명해주세요.",
+      "API 응답 속도를 40% 단축한 경험에 대해, 문제를 어떻게 발견하고 해결했는지 구체적으로 설명해주세요.",
+      "데이터 기반 접근 방식이 백엔드 개발자에게 왜 중요한지, 그리고 토스의 데이터 기반 의사결정 문화와 어떻게 연결되는지 말씀해주세요.",
+      "앞으로 기술적 깊이를 넓히고 팀과 함께 성장하고 싶다고 하셨는데, 구체적인 계획이나 학습 방향이 있으신가요?"
+    ],
+    answers: [
+      "저는 사용자가 보지 못하는 곳에서 시스템이 안정적으로 동작하도록 만드는 것이 백엔드 개발자의 핵심 가치라고 생각합니다. 자료구조, 운영체제, 데이터베이스 등 핵심 이론을 학습하면서 시스템의 견고함에 더 큰 흥미를 느꼈고, 특히 예측 불가한 트래픽이나 오류 상황에서도 안정적으로 서비스를 제공해야 한다는 점에서 백엔드 개발자의 책임감과 판단력이 중요하다고 실감했습니다.",
+      "팀 프로젝트에서는 단순히 요청대로 기능을 구현하는 것을 넘어, 왜 필요한지, 어떤 제약이 있는지, 더 나은 구조는 없는지를 먼저 질문했습니다. 프론트엔드 팀원과 API 스펙을 맞추는 과정에서 기능 구현보다 먼저 커뮤니케이션 구조와 일정 관리를 정리하여 프로젝트 전체 흐름을 조율하는 역할을 맡았습니다.",
+      "사용자 활동 로그를 분석하여 API 응답 속도 저하 구간을 찾아냈고, 쿼리 구조를 개선하여 평균 응답 속도를 40% 단축했습니다. 이 과정에서 '문제를 감으로 해결하지 않고, 데이터로 원인을 추적하는 것'이 백엔드 개발자의 핵심 태도임을 깨달았습니다.",
+      "데이터베이스 설계 시 작은 제약 조건 하나가 성능과 안정성에 큰 차이를 만들고, 일정 관리는 장애 대응 속도와 서비스 신뢰도에 직결됩니다. 토스가 추구하는 데이터 기반 의사결정 문화와 제가 중요하게 여기는 데이터 기반 접근 방식이 일치한다고 생각합니다.",
+      "앞으로도 기술적 깊이를 넓히고, 변화에 빠르게 대응하며, 팀과 함께 더 나은 결정을 만들어가는 개발자로 성장하고 싶습니다. 특히 시스템 아키텍처와 성능 최적화 분야에 더 깊이 있게 학습하고, 실제 프로젝트에 적용해보는 것을 목표로 하고 있습니다."
+    ],
+    overallScore: 88
+  };
 
-  // 자기소개서 리스트 상태 (백엔드에서 가져옴)
+  // 자기소개서 리스트 상태 (백엔드에서 가져옴, 프론트엔드 하드코딩 데이터 포함)
   const [recentIntroductions, setRecentIntroductions] = useState<Array<{
     introductionId: number;
     title: string | null;
     date: string;
-  }>>([]);
+  }>>([
+    // 프론트엔드 하드코딩: 제공된 자기소개서 기반 피드백이 항상 표시되도록
+    {
+      introductionId: 1,
+      title: null,
+      date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')
+    }
+  ]);
   const [isLoadingIntroductions, setIsLoadingIntroductions] = useState(false);
   
-  // 3) 자기소개서 피드백 상태
-  const [introFeedbacks, setIntroFeedbacks] = useState<any[]>([]);
+  // 제공된 자기소개서 기반 하드코딩된 피드백 (프론트엔드에서 항상 표시)
+  const hardcodedFeedback = `## 전체적인 평가
+
+토스 백엔드 개발자 지원 자기소개서를 검토한 결과, 회사에 대한 깊은 이해와 본인의 경험을 효과적으로 연결한 잘 구성된 자기소개서입니다. 특히 토스의 핵심 가치(안정성, 수평적 조직 문화, 데이터 기반 의사결정)와 본인의 경험을 자연스럽게 연결한 점이 인상적입니다.
+
+## 강점
+
+1. **명확한 회사 이해와 연결**: 
+   - "사용자가 보지 못하는 곳의 안정성을 책임지는 사람"이라는 백엔드 개발자에 대한 철학을 토스의 금융 서비스 특성(안정성 핵심)과 명확하게 연결
+   - 토스의 수평적 조직 문화, 데이터 기반 의사결정 등 회사의 핵심 가치를 정확히 파악하고 본인의 경험과 연결
+
+2. **구체적이고 검증 가능한 성과**: 
+   - API 응답 속도 40% 단축이라는 정량적 성과 제시
+   - 사용자 활동 로그 분석 → 문제 구간 파악 → 쿼리 구조 개선이라는 문제 해결 과정이 논리적으로 서술됨
+
+3. **협업 능력과 리더십**: 
+   - "백엔드는 서비스의 중심축"이라는 인식에서 비롯된 적극적 협업 태도
+   - 단순 구현을 넘어 "왜 필요한지, 어떤 제약이 있는지, 더 나은 구조는 없는지"를 먼저 질문하는 사고력
+   - API 스펙 조율, 커뮤니케이션 구조 정리, 일정 관리 등 프로젝트 조율 경험
+
+4. **데이터 기반 문제 해결**: 
+   - "감으로 해결하지 않고, 데이터로 원인을 추적"하는 태도가 실제 경험(로그 분석, 쿼리 개선)으로 뒷받침됨
+   - 토스의 데이터 기반 의사결정 문화와의 자연스러운 연결
+
+## 개선 제안
+
+1. **기술적 세부사항 보강**: 
+   - 사용한 기술 스택(프레임워크, 데이터베이스, 언어 등)을 구체적으로 언급하면 기술적 역량이 더 명확하게 전달됩니다.
+   - 쿼리 구조 개선 시 어떤 최적화 기법을 사용했는지 간단히 언급하면 좋습니다.
+
+2. **프로젝트 맥락 구체화**: 
+   - 팀 프로젝트의 규모(팀원 수, 프로젝트 기간, 서비스 규모 등)를 추가하면 경험의 깊이를 더 잘 보여줄 수 있습니다.
+   - API 응답 속도 개선이 어떤 사용자 경험 개선으로 이어졌는지 간단히 언급하면 더욱 설득력이 높아집니다.
+
+3. **토스 특화 경험 강조**: 
+   - 금융 서비스나 핀테크 관련 경험이 있다면 더욱 강조하면 좋습니다.
+   - 토스의 특정 서비스나 기술에 대한 관심이나 학습 경험을 언급하면 지원 동기가 더욱 구체화됩니다.
+
+## 종합 의견
+
+토스 백엔드 개발자로서 필요한 핵심 역량(안정성에 대한 이해, 데이터 기반 문제 해결, 협업 능력)이 모두 잘 드러나며, 특히 토스의 조직 문화와 가치에 대한 깊은 이해가 돋보입니다. 구체적인 성과(API 응답 속도 40% 개선)와 문제 해결 과정이 논리적으로 서술되어 있어, 실무 역량을 충분히 보여주고 있습니다. 기술적 세부사항과 프로젝트 맥락을 조금 더 구체화하면 더욱 강력한 자기소개서가 될 것입니다.`;
+  
+  // 자기소개서 피드백 상태 (상세 화면에서 사용)
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
 
   const handleEditProfile = () => {
@@ -356,35 +430,10 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
   const handleInterviewClick = () => {
     setShowInterviewDetail(true);
   };
-
-  const handleResumeClick = async () => {
-    // 카드 클릭 시 lastIntroductionId로 피드백 불러오기
-    const lastId = localStorage.getItem("lastIntroductionId");
-    if (lastId) {
-      try {
-        const feedback = await getFeedbackByIntroductionId(Number(lastId));
-        // 응답이 배열인지 단일 객체인지 확인
-        if (Array.isArray(feedback) && feedback.length > 0) {
-          setSelectedFeedback(feedback[0]);
-        } else if (feedback) {
-          setSelectedFeedback(feedback);
-        } else {
-          setSelectedFeedback(null);
-        }
-        setShowResumeDetail(true);
-      } catch (error) {
-        console.error('피드백 불러오기 실패:', error);
-        setSelectedFeedback(null);
-        setShowResumeDetail(true);
-      }
-    } else {
-      setSelectedFeedback(null);
-      setShowResumeDetail(true);
-    }
-  };
-
+  
   // 면접 상세 화면
   if (showInterviewDetail) {
+    const interview = recentInterviews[0];
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -398,92 +447,54 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             뒤로가기
           </Button>
         </div>
-        
+
         <div className="space-y-2">
           <h1 className="text-primary flex items-center gap-2">
-            <MessageSquare className="w-8 h-8" />
-            면접 피드백 상세
+            <Brain className="w-8 h-8" />
+            AI 모의면접 결과
           </h1>
-          <p className="text-muted-foreground">네이버 백엔드 개발자 면접 결과 및 피드백입니다</p>
+          <p className="text-muted-foreground">면접 분석 결과 및 피드백입니다</p>
         </div>
 
-        {/* 요약 정보 카드 */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-2 rounded-xl">
-            <CardContent className="text-center p-6">
-              <div className="w-12 h-12 bg-blue-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                <Clock className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">6분 20초</p>
-                <p className="text-muted-foreground">총 진행 시간</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2 rounded-xl">
-            <CardContent className="text-center p-6">
-              <div className="w-12 h-12 bg-green-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                <MessageSquare className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">5개</p>
-                <p className="text-muted-foreground">총 질문 개수</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2 rounded-xl">
-            <CardContent className="text-center p-6">
-              <div className="w-12 h-12 bg-purple-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                <Star className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">3.5점</p>
-                <p className="text-muted-foreground">평균 점수</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* AI 영역별 피드백 */}
+        {/* 면접 기본 정보 */}
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-primary" />
-              AI 영역별 피드백
+              <MessageSquare className="w-5 h-5 text-primary" />
+              면접 정보
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-              <span className="text-green-600">✅</span>
+            <div className="grid md:grid-cols-3 gap-4">
               <div>
-                <p className="font-medium text-green-900">기술적 깊이</p>
-                <p className="text-green-800">지원한 분야와 관련된 기술 스택에 대한 이해도가 우수합니다.</p>
+                <p className="text-sm text-muted-foreground">전공</p>
+                <p className="font-medium">{interview.major}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">직무</p>
+                <p className="font-medium">{interview.position}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">면접 날짜</p>
+                <p className="font-medium">{interview.date}</p>
               </div>
             </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <span className="text-yellow-600">⚠️</span>
-              <div>
-                <p className="font-medium text-yellow-900">문제 해결 능력</p>
-                <p className="text-yellow-800">구체적인 경험을 들어 해결 과정을 설명하면 더 좋습니다.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <span className="text-blue-600">🤝</span>
-              <div>
-                <p className="font-medium text-blue-900">협업 능력</p>
-                <p className="text-blue-800">팀 프로젝트 경험과 소통 방식을 강조하세요.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-              <span className="text-purple-600">🚀</span>
-              <div>
-                <p className="font-medium text-purple-900">성장 의지</p>
-                <p className="text-purple-800">부족한 점을 인정하고 보완 계획을 제시하세요.</p>
+          </CardContent>
+        </Card>
+
+        {/* 종합 점수 */}
+        <Card className="border-2 rounded-xl bg-gradient-to-r from-primary/5 to-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-primary" />
+              종합 점수
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="text-6xl font-bold text-primary mb-2">{hardcodedInterviewData.overallScore}</div>
+                <div className="text-2xl font-semibold text-muted-foreground">점</div>
               </div>
             </div>
           </CardContent>
@@ -496,30 +507,18 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <CardDescription>각 질문에 대한 답변 분석 결과입니다</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              "자기소개를 해주세요.",
-              "본인의 강점과 약점은 무엇인가요?",
-              "팀 프로젝트에서 갈등이 생겼을 때 어떻게 해결하나요?",
-              "기술적으로 어려웠던 문제를 해결한 경험이 있나요?",
-              "우리 회사에 지원한 이유는 무엇인가요?"
-            ].map((question, index) => (
+            {hardcodedInterviewData.questions.map((question, index) => (
               <div key={index} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">질문 {index + 1}</h4>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>답변 시간: {Math.floor(Math.random() * 30) + 30}초</span>
-                    <span className="font-medium text-primary">{Math.floor(Math.random() * 20) + 70}점</span>
+                    <span>답변 시간: {Math.floor(Math.random() * 20) + 45}초</span>
+                    <span className="font-medium text-primary">{Math.floor(Math.random() * 10) + 85}점</span>
                   </div>
                 </div>
                 <p className="text-muted-foreground">{question}</p>
-                <div className="bg-muted/50 p-3 rounded border-l-4 border-primary/20">
-                  <p className="text-sm text-muted-foreground">
-                    {index === 0 ? "네, 안녕하세요. 저는 주로 백엔드 개발에 관심이 많아 Node.js와 Python을 활용한 프로젝트를 여러 개 진행했습니다..." :
-                     index === 1 ? "제 강점은 문제 해결 능력입니다. 복잡한 문제를 단계별로 나누어 체계적으로 접근하는 편이고, 약점은 때로는 완벽주의 성향이 강해서..." :
-                     index === 2 ? "팀 프로젝트에서 의견 충돌이 있을 때는 먼저 각자의 입장을 충분히 들어보고, 공통의 목표를 다시 확인한 후..." :
-                     index === 3 ? "네, 최근 프로젝트에서 대용량 데이터 처리 시 성능 이슈가 발생했는데, 데이터베이스 인덱싱과 쿼리 최적화를 통해..." :
-                     "네이버는 기술 혁신을 통해 사용자의 일상을 편리하게 만든다는 비전에 공감했고, 특히 검색과 AI 기술 분야에서..."}
-                  </p>
+                <div className="bg-muted/50 p-3 rounded border-l-4 border-muted-foreground/20">
+                  <p className="text-muted-foreground italic">답변 내용: {hardcodedInterviewData.answers[index]}</p>
                 </div>
               </div>
             ))}
@@ -530,18 +529,68 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
         <Card className="border-2 rounded-xl bg-gradient-to-r from-primary/5 to-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
+              <Brain className="w-5 h-5 text-primary" />
               AI 종합 피드백
             </CardTitle>
+            <CardDescription>
+              전체 면접을 종합적으로 분석한 AI의 조언입니다
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <p className="text-primary font-medium mb-2">📋 전체적인 평가</p>
-              <p className="text-gray-700 leading-relaxed">
-                기술적 지식은 우수하나 소통 능력 개선이 필요합니다. 특히 복잡한 기술 개념을 
-                쉽게 설명하는 연습을 권장합니다. 전반적으로 면접에 임하는 자세가 좋고, 
-                자신의 경험을 구체적으로 설명하는 부분이 인상적이었습니다.
-              </p>
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-primary/10 rounded-full mt-1">
+                  <MessageSquare className="w-4 h-4 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-primary font-medium">📋 전체적인 평가</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    백엔드 개발자로서의 목표 의식과 기술적 깊이가 명확하게 드러났습니다. 특히 "사용자가 보지 못하는 곳의 안정성을 책임지는 사람"이라는 백엔드 개발자에 대한 철학적 이해가 깊고, 이를 실제 경험(API 응답 속도 40% 개선, 팀 프로젝트 협업)과 잘 연결하여 설명했습니다. 데이터 기반 문제 해결 접근 방식과 토스의 개발 문화에 대한 이해도가 인상적입니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-green-100 rounded-full mt-1">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-green-700 font-medium">💪 주요 강점</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    구체적이고 검증 가능한 성과(API 응답 속도 40% 단축)를 제시했으며, 문제 해결 과정(로그 분석 → 문제 구간 파악 → 쿼리 구조 개선)을 논리적으로 설명했습니다. "백엔드는 서비스의 중심축"이라는 인식에서 비롯된 적극적 협업 태도와, 단순 구현을 넘어 "왜 필요한지, 어떤 제약이 있는지"를 먼저 질문하는 사고력이 돋보입니다. 토스의 핵심 가치(안정성, 수평적 조직 문화, 데이터 기반 의사결정)와 본인의 경험을 자연스럽게 연결한 점도 강점입니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-100 rounded-full mt-1">
+                  <Target className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-blue-700 font-medium">🎯 개선 포인트</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    기술적 세부사항(사용한 기술 스택, 프레임워크, 데이터베이스 종류 등)을 더 구체적으로 언급하면 기술적 역량이 더 명확하게 전달될 수 있습니다. 또한 프로젝트의 규모(팀원 수, 프로젝트 기간, 서비스 규모 등)를 추가하면 경험의 깊이를 더 잘 보여줄 수 있습니다. 답변 시간을 조금 더 여유있게 활용하시고, 각 답변의 마무리를 더 명확하게 하면 완성도가 높아질 것입니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-purple-100 rounded-full mt-1">
+                  <Star className="w-4 h-4 text-purple-600" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-purple-700 font-medium">🚀 앞으로의 방향</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    현재 수준에서 실제 면접에 충분히 대응할 수 있을 것으로 보입니다. 기술 스택과 프로젝트 경험을 더 구체화하고, 다양한 상황별 질문에 대한 연습을 더 해보시면 자신감도 더욱 향상될 것입니다. 특히 시스템 아키텍처와 성능 최적화 분야에 대한 학습 계획을 구체적으로 제시하면 더욱 강력한 면접이 될 것입니다.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -549,8 +598,44 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     );
   }
 
+  const handleResumeClick = async () => {
+    // 카드 클릭 시 lastIntroductionId로 피드백 불러오기
+    const lastId = localStorage.getItem("lastIntroductionId");
+    if (lastId) {
+      try {
+        const feedback = await getFeedbackByIntroductionId(Number(lastId));
+        // 응답이 배열인지 단일 객체인지 확인
+        if (Array.isArray(feedback) && feedback.length > 0) {
+          setSelectedFeedback(feedback[0]);
+        } else if (feedback) {
+          setSelectedFeedback(feedback);
+        } else {
+          // 피드백이 없으면 하드코딩된 피드백 사용
+          setSelectedFeedback({ feedback: hardcodedFeedback });
+        }
+        setShowResumeDetail(true);
+      } catch (error) {
+        console.error('피드백 불러오기 실패, 하드코딩된 피드백 사용:', error);
+        // API 실패 시 하드코딩된 피드백 사용
+        setSelectedFeedback({ feedback: hardcodedFeedback });
+        setShowResumeDetail(true);
+      }
+    } else {
+      // lastId가 없어도 하드코딩된 피드백 사용
+      setSelectedFeedback({ feedback: hardcodedFeedback });
+      setShowResumeDetail(true);
+    }
+  };
+
+
   // 자소서 상세 화면
   if (showResumeDetail) {
+    // 자소서 정보 가져오기 (하드코딩된 데이터에서)
+    const resumeInfo = recentIntroductions.find(intro => intro.introductionId === 1) || recentIntroductions[0];
+    const resumeTitle = resumeInfo?.title || "네이버 자기소개서";
+    const resumeDate = resumeInfo?.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '');
+    const feedbackText = selectedFeedback?.feedback || hardcodedFeedback;
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -564,16 +649,16 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             뒤로가기
           </Button>
         </div>
-        
+
         <div className="space-y-2">
           <h1 className="text-primary flex items-center gap-2">
-            <FileText className="w-8 h-8" />
-            자소서 피드백 상세
+            <Bot className="w-8 h-8" />
+            자기소개서 AI 피드백
           </h1>
-          <p className="text-muted-foreground">백엔드 개발 직무 자기소개서 상세 피드백입니다</p>
+          <p className="text-muted-foreground">AI가 분석한 자기소개서 피드백 결과입니다</p>
         </div>
 
-        {/* 자소서 기본 정보 */}
+        {/* 자소서 기본 정보 - 유지 */}
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -585,11 +670,11 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">제목</p>
-                <p className="font-medium">백엔드 개발 직무</p>
+                <p className="font-medium">{resumeTitle}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">작성 날짜</p>
-                <p className="font-medium">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')}</p>
+                <p className="font-medium">{resumeDate}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">피드백 상태</p>
@@ -601,151 +686,30 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           </CardContent>
         </Card>
 
-        {/* AI 분석 결과 */}
+        {/* AI 분석 결과 - ResumeAI.tsx와 동일한 구조 */}
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
+              <Bot className="w-5 h-5 text-primary" />
               AI 분석 결과
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedFeedback && selectedFeedback.feedback ? (
+            {feedbackText ? (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
-                <div className="text-blue-800 prose prose-sm max-w-none whitespace-pre-wrap break-words">
-                  {selectedFeedback.feedback}
+                <div 
+                  className="text-blue-800 prose prose-sm max-w-none"
+                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                >
+                  <ReactMarkdown>{feedbackText}</ReactMarkdown>
                 </div>
               </div>
             ) : (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">📋 전체적인 분석</h4>
-                <p className="text-blue-800">
-                  피드백을 불러오는 중입니다...
-                </p>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-gray-600">피드백을 불러오는 중...</p>
               </div>
             )}
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <h4 className="font-medium text-green-900 mb-2">✅ 강점</h4>
-              <ul className="text-green-800 list-disc list-inside space-y-1">
-                <li>구체적인 성과 지표 활용 (예: 30% 향상, 15명 협업)</li>
-                <li>STAR 기법을 활용한 체계적인 경험 서술</li>
-                <li>전공 지식과 실무 역량의 연결성</li>
-                <li>논리적이고 일관된 문장 구성</li>
-              </ul>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <h4 className="font-medium text-yellow-900 mb-2">💡 개선 제안</h4>
-              <ul className="text-yellow-800 list-disc list-inside space-y-1">
-                <li>지원동기에서 회사의 핵심 가치와 본인의 목표 연결</li>
-                <li>첫 문단을 더 임팩트 있게 시작하는 방법 고려</li>
-                <li>차별화된 개인적 경험이나 관점 추가</li>
-                <li>네이버 특유의 기술 스택이나 문화에 대한 언급</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 문항별 상세 피드백 */}
-        <Card className="border-2 rounded-xl">
-          <CardHeader>
-            <CardTitle>문항별 상세 피드백</CardTitle>
-            <CardDescription>각 문항에 대한 AI 분석 결과입니다</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {[
-              {
-                title: "1. 자기소개 및 성장과정",
-                content: "저는 어릴 때부터 기술을 통해 사람들의 삶을 편리하게 만드는 것에 관심이 많았습니다. 대학에 입학한 후 컴퓨터공학을 전공하며 프로그래밍의 매력에 빠져...",
-                feedback: "개인적인 경험과 동기가 잘 드러나며, 전공 선택의 이유가 명확합니다. 다만 더 구체적인 에피소드를 추가하면 차별화될 수 있습니다.",
-                score: 85
-              },
-              {
-                title: "2. 지원동기 및 입사 후 포부",
-                content: "네이버는 한국을 대표하는 기술 기업으로, 검색부터 커머스, 클라우드까지 다양한 영역에서 혁신을 이끌고 있습니다. 특히 AI와 머신러닝 기술을 활용한...",
-                feedback: "회사에 대한 기본적인 이해는 있으나, 더 구체적인 사업 영역이나 기술 스택에 대한 언급이 있으면 좋겠습니다.",
-                score: 75
-              },
-              {
-                title: "3. 본인의 역량 및 경험",
-                content: "대학 재학 중 총 3개의 프로젝트를 진행했으며, 그 중 가장 의미있었던 것은 교내 식당 예약 시스템 개발 프로젝트입니다. 팀 리더로서 5명의 팀원과 함께...",
-                feedback: "프로젝트 경험이 구체적이고 성과가 명확합니다. 리더십과 기술적 역량이 잘 드러나는 좋은 사례입니다.",
-                score: 90
-              }
-            ].map((item, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">{item.title}</h4>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-primary">{item.score}점</span>
-                  </div>
-                </div>
-                <div className="bg-muted/50 p-3 rounded border-l-4 border-primary/20">
-                  <p className="text-sm text-muted-foreground mb-2">작성 내용:</p>
-                  <p className="text-sm">{item.content}</p>
-                </div>
-                <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                  <p className="text-sm font-medium text-blue-900 mb-1">AI 피드백:</p>
-                  <p className="text-sm text-blue-800">{item.feedback}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* AI 종합 피드백 */}
-        <Card className="border-2 rounded-xl bg-gradient-to-r from-primary/5 to-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-primary" />
-              AI 종합 피드백
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-primary/10 rounded-full mt-1">
-                  <MessageSquare className="w-4 h-4 text-primary" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-primary font-medium">📋 종합 평가</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    자기소개서의 구체적인 경험 서술이 인상적입니다. 특히 프로젝트에서의 리더십과 
-                    문제 해결 능력이 잘 드러나며, 기술적 역량에 대한 설명이 체계적입니다.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-green-100 rounded-full mt-1">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-green-700 font-medium">💪 핵심 강점</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    구체적인 수치와 성과를 활용한 경험 서술, STAR 기법을 통한 체계적인 구성, 
-                    그리고 기술적 지식과 실무 경험의 자연스러운 연결이 돋보입니다.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-100 rounded-full mt-1">
-                  <Target className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-blue-700 font-medium">🎯 개선 방향</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    지원동기 부분에서 네이버의 기술 스택이나 기업 문화에 대한 구체적인 언급을 
-                    추가하고, 개인만의 차별화된 경험이나 관점을 더 강조하면 완성도가 높아질 것입니다.
-                  </p>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -1116,43 +1080,6 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
         )}
       </div>
 
-      {/* 4) 최근 자기소개서 피드백 섹션 */}
-      {introFeedbacks.length > 0 && (
-        <div className="space-y-6">
-          <h2 className="flex items-center gap-2">
-            <FileText className="w-6 h-6 text-primary" />
-            최근 자기소개서 피드백
-          </h2>
-          
-          <div className="space-y-4">
-            {introFeedbacks.map((feedback, index) => (
-              <Card 
-                key={index} 
-                className="border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-              >
-                <CardContent className="p-6">
-                  <div className="space-y-3">
-                    {feedback.feedback && (
-                      <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">피드백</h4>
-                        <p className="text-gray-700 whitespace-pre-wrap break-words">
-                          {feedback.feedback}
-                        </p>
-                      </div>
-                    )}
-                    {feedback.savedId && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="w-3 h-3" />
-                        <span>저장 ID: {feedback.savedId}</span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
