@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Badge } from "./ui/badge";
 import { Award, Building, Loader } from "lucide-react";
 import { departments } from "./DepartmentSelector";
 import { getRoadmapCert } from "../api";
@@ -13,7 +12,6 @@ interface CertificationRoadmapViewProps {
 interface Certification {
   name: string;
   organization: string;
-  difficulty: 'easy' | 'medium' | 'hard';
   description: string;
 }
 
@@ -52,7 +50,6 @@ export function CertificationRoadmapView({ selectedDepartment, selectedJob }: Ce
         const transformedCerts: Certification[] = data.map((item: any) => ({
           name: item.certName || item.cert_name || item.certName || '',
           organization: item.organization || item.org || '미정',
-          difficulty: 'medium' as const, // API에서 difficulty 정보가 없으면 기본값
           description: item.description || `${item.certName || item.cert_name || ''} 자격증입니다.`
         }));
 
@@ -94,23 +91,6 @@ export function CertificationRoadmapView({ selectedDepartment, selectedJob }: Ce
     fetchCertifications();
   }, [selectedDepartment, selectedJob, departmentInfo]);
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "easy": return "bg-green-100 text-green-700 border border-green-200";
-      case "medium": return "bg-yellow-100 text-yellow-700 border border-yellow-200";
-      case "hard": return "bg-red-100 text-red-700 border border-red-200";
-      default: return "bg-gray-100 text-gray-700 border border-gray-200";
-    }
-  };
-
-  const getDifficultyLabel = (difficulty: string) => {
-    switch (difficulty) {
-      case "easy": return "초급";
-      case "medium": return "중급";
-      case "hard": return "고급";
-      default: return "미분류";
-    }
-  };
 
   if (isLoading) {
     return (
@@ -169,18 +149,13 @@ export function CertificationRoadmapView({ selectedDepartment, selectedJob }: Ce
           {certifications.map((cert, index) => (
             <Card key={index} className="border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:border-[#051243] bg-white h-52 flex flex-col">
               <CardHeader className="pb-2 bg-white rounded-t-xl border-b border-gray-100 flex-shrink-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div className="p-1.5 bg-gray-50 rounded-lg flex-shrink-0">
-                      <Award className="w-3.5 h-3.5 text-[#051243]" />
-                    </div>
-                    <CardTitle className="text-sm font-semibold text-[#051243] leading-tight break-words hyphens-auto" style={{wordBreak: 'keep-all', overflowWrap: 'break-word'}}>
-                      {cert.name}
-                    </CardTitle>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="p-1.5 bg-gray-50 rounded-lg flex-shrink-0">
+                    <Award className="w-3.5 h-3.5 text-[#051243]" />
                   </div>
-                  <Badge className={`${getDifficultyColor(cert.difficulty)} rounded-full px-1.5 py-0.5 text-xs font-medium whitespace-nowrap flex-shrink-0`}>
-                    {getDifficultyLabel(cert.difficulty)}
-                  </Badge>
+                  <CardTitle className="text-sm font-semibold text-[#051243] leading-tight break-words hyphens-auto" style={{wordBreak: 'keep-all', overflowWrap: 'break-word'}}>
+                    {cert.name}
+                  </CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="pt-2 pb-3 flex flex-col justify-between flex-1 min-h-0">

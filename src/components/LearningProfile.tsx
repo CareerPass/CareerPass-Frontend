@@ -20,9 +20,10 @@ import {
   Star,
   Settings,
   X,
-  ArrowLeft
+  ArrowLeft,
+  AlertCircle
 } from "lucide-react";
-import { fetchUserLearningProfile } from "../api";
+import { fetchUserLearningProfile, updateUserProfile } from "../api";
 
 interface LearningProfileProps {
   userId?: number;
@@ -49,6 +50,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
   };
 
   const [profileCompleted, setProfileCompleted] = useState(false);
+  const [isProfileSaved, setIsProfileSaved] = useState(false);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -61,42 +63,127 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
   const [showResumeDetail, setShowResumeDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 사용자 정보 초기화 - 자동 저장 제거, 항상 빈 값으로 시작
+  // ========== [시연용] 사용자 정보 초기화 - 페이지 이동 시 유지, 서버 재시작 시 초기화 ==========
   useEffect(() => {
     setIsLoading(true);
     
-    // 항상 빈 값으로 시작 (localStorage에서 자동으로 불러오지 않음)
-    const defaultUserInfo = {
-      id: null as number | null,
-      name: "",
-      email: FIXED_EMAIL,
-      major: "",
-      targetJob: ""
-    };
-    setUserInfo(defaultUserInfo);
-    setProfileCompleted(false);
-    
-    setIsLoading(false);
+    try {
+      // [시연용] sessionStorage를 사용하여 플래그 관리
+      // - 페이지 이동 시에는 유지됨 (같은 브라우저 탭)
+      // - npm run dev로 서버 재시작 후 브라우저를 새로 열면 초기화됨 (sessionStorage 특성)
+      const savedFlag = sessionStorage.getItem('learningProfileSaved');
+      const isSaved = savedFlag === 'true';
+      
+      setIsProfileSaved(isSaved);
+      
+      if (isSaved) {
+        // [시연용] 저장된 경우에만 learningProfile에서 값 불러오기
+        // 페이지 이동 시에도 값이 유지되도록 함
+        const storedProfile = localStorage.getItem('learningProfile');
+        if (storedProfile) {
+          try {
+            const parsed = JSON.parse(storedProfile);
+            const loadedUserInfo = {
+              id: null as number | null,
+              name: parsed.name || "",
+              email: parsed.email || FIXED_EMAIL,
+              major: parsed.major || "",
+              targetJob: parsed.targetJob || parsed.jobTitle || ""
+            };
+            setUserInfo(loadedUserInfo);
+            setProfileCompleted(calculateProfileCompleted(loadedUserInfo));
+          } catch (parseError) {
+            console.error('learningProfile 파싱 실패:', parseError);
+            // 파싱 실패 시 빈 값으로 시작
+            const defaultUserInfo = {
+              id: null as number | null,
+              name: "",
+              email: FIXED_EMAIL,
+              major: "",
+              targetJob: ""
+            };
+            setUserInfo(defaultUserInfo);
+            setProfileCompleted(false);
+          }
+        } else {
+          // 플래그는 true인데 데이터가 없으면 빈 값으로 시작
+          const defaultUserInfo = {
+            id: null as number | null,
+            name: "",
+            email: FIXED_EMAIL,
+            major: "",
+            targetJob: ""
+          };
+          setUserInfo(defaultUserInfo);
+          setProfileCompleted(false);
+        }
+      } else {
+        // [시연용] 저장 전 상태: 빈 값으로 시작
+        // npm run dev로 서버 재시작 후 브라우저를 새로 열면 sessionStorage가 비어있어서 여기로 옴
+        const defaultUserInfo = {
+          id: null as number | null,
+          name: "",
+          email: FIXED_EMAIL,
+          major: "",
+          targetJob: ""
+        };
+        setUserInfo(defaultUserInfo);
+        setProfileCompleted(false);
+      }
+    } catch (error) {
+      console.error('프로필 초기화 실패:', error);
+      // 에러 발생 시 빈 값으로 시작
+      const defaultUserInfo = {
+        id: null as number | null,
+        name: "",
+        email: FIXED_EMAIL,
+        major: "",
+        targetJob: ""
+      };
+      setUserInfo(defaultUserInfo);
+      setProfileCompleted(false);
+      setIsProfileSaved(false);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // 자기소개서 리스트 로드
-  useEffect(() => {
-    async function loadIntroductions() {
-      try {
-        setIsLoadingIntroductions(true);
-        const profile = await fetchUserLearningProfile(1);
-        setRecentIntroductions(profile.recentIntroductions ?? []);
-      } catch (e) {
-        console.error('자기소개서 리스트 로드 실패:', e);
-        // 에러 발생 시 빈 배열로 설정
-        setRecentIntroductions([]);
-      } finally {
-        setIsLoadingIntroductions(false);
-      }
+  const loadIntroductions = async () => {
+    try {
+      setIsLoadingIntroductions(true);
+      const profile = await fetchUserLearningProfile(1);
+      setRecentIntroductions(profile.recentIntroductions ?? []);
+    } catch (e) {
+      console.error('자기소개서 리스트 로드 실패:', e);
+      // 에러 발생 시 빈 배열로 설정
+      setRecentIntroductions([]);
+    } finally {
+      setIsLoadingIntroductions(false);
     }
+  };
+
+  useEffect(() => {
     loadIntroductions();
+
+    // 자기소개서 저장 이벤트 리스너 등록
+    const handleIntroductionSaved = () => {
+      console.log('자기소개서 저장 이벤트 감지, 리스트 갱신 중...');
+      // 짧은 딜레이 후 리스트 다시 로드 (서버 반영 시간 고려)
+      setTimeout(() => {
+        loadIntroductions();
+      }, 500);
+    };
+
+    window.addEventListener('introductionSaved', handleIntroductionSaved);
+
+    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    return () => {
+      window.removeEventListener('introductionSaved', handleIntroductionSaved);
+    };
   }, []);
 
   const [achievements] = useState([
@@ -189,53 +276,69 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     setShowEditProfile(true);
   };
 
-  const handleSaveProfile = () => {
-    // isSaving = true
+  const handleSaveProfile = async () => {
     setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
 
-    // 프론트 상태만 갱신 (백엔드 API 호출 없음)
-    const newUserInfo = {
-      id: userInfo.id,
-      name: editForm.name,
-      email: FIXED_EMAIL, // 하드코딩된 이메일
-      major: editForm.major,
-      targetJob: editForm.targetJob
-    };
-    
-    // userInfo 상태 업데이트
-    setUserInfo(newUserInfo);
-    
-    // profileCompleted를 true로 설정
-    setProfileCompleted(true);
-    
-    // localStorage 업데이트 (isComplete 필드 제거, name/major/targetJob만 저장)
-    const userProfile = {
-      email: FIXED_EMAIL,
-      name: editForm.name,
-      major: editForm.major,
-      targetJob: editForm.targetJob
-    };
-    localStorage.setItem('userProfile', JSON.stringify(userProfile));
-    
-    // 상위 컴포넌트에 userInfo 변경 알림
-    if (onProfileInfoChange) {
-      onProfileInfoChange({
-        name: newUserInfo.name,
-        major: newUserInfo.major,
-        targetJob: newUserInfo.targetJob
-      });
+    try {
+      // ========== [시연용] 프론트 상태 갱신 ==========
+      const newUserInfo = {
+        id: userInfo.id,
+        name: editForm.name,
+        email: FIXED_EMAIL,
+        major: editForm.major,
+        targetJob: editForm.targetJob
+      };
+      
+      setUserInfo(newUserInfo);
+      setProfileCompleted(calculateProfileCompleted(newUserInfo));
+      
+      // ========== [시연용] learningProfile을 localStorage에 저장 ==========
+      // 프로필 정보는 localStorage.learningProfile에 저장 (페이지 이동 시에도 유지)
+      const learningProfile = {
+        name: editForm.name,
+        major: editForm.major,
+        jobTitle: editForm.targetJob,
+        email: FIXED_EMAIL
+      };
+      localStorage.setItem('learningProfile', JSON.stringify(learningProfile));
+      
+      // ========== [시연용] 저장 버튼을 누른 경우에만 learningProfileSaved를 true로 설정 ==========
+      // sessionStorage를 사용하여 플래그 저장
+      // - 페이지 이동 시에는 유지됨 (같은 브라우저 탭)
+      // - npm run dev로 서버 재시작 후 브라우저를 새로 열면 sessionStorage가 비어있어서 초기화됨
+      sessionStorage.setItem('learningProfileSaved', 'true');
+      setIsProfileSaved(true);
+      
+      // 상위 컴포넌트에 userInfo 변경 알림
+      if (onProfileInfoChange) {
+        onProfileInfoChange({
+          name: newUserInfo.name,
+          major: newUserInfo.major,
+          targetJob: newUserInfo.targetJob
+        });
+      }
+
+      // 성공 메시지 표시 (3초 후 자동 사라짐)
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+
+      // 모달 닫기
+      setShowEditProfile(false);
+
+      // 프로필 설정 완료 콜백 호출
+      if (onProfileComplete) {
+        onProfileComplete();
+      }
+    } catch (err: any) {
+      console.error('프로필 저장 실패:', err);
+      setSaveError(err.message || '프로필 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsSaving(false);
     }
-
-    // 모달 닫기
-    setShowEditProfile(false);
-
-    // 프로필 설정 완료 콜백 호출
-    if (onProfileComplete) {
-      onProfileComplete();
-    }
-    
-    // isSaving = false
-    setIsSaving(false);
   };
 
   const handleInterviewClick = () => {
@@ -641,11 +744,27 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {saveError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <p className="text-red-800 text-sm">{saveError}</p>
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  <p className="text-green-800 text-sm">프로필이 저장되었습니다.</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>이름</Label>
                 <Input 
                   value={editForm.name}
-                  onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                  onChange={(e) => {
+                    setEditForm({...editForm, name: e.target.value});
+                    setSaveError(null);
+                    setSaveSuccess(false);
+                  }}
                   disabled={isSaving}
                   placeholder="이름을 입력하세요"
                 />
@@ -663,7 +782,11 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
                 <Label>전공</Label>
                 <Input 
                   value={editForm.major}
-                  onChange={(e) => setEditForm({...editForm, major: e.target.value})}
+                  onChange={(e) => {
+                    setEditForm({...editForm, major: e.target.value});
+                    setSaveError(null);
+                    setSaveSuccess(false);
+                  }}
                   disabled={isSaving}
                   placeholder="전공을 입력하세요"
                 />
@@ -672,7 +795,11 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
                 <Label>목표 직무</Label>
                 <Input 
                   value={editForm.targetJob}
-                  onChange={(e) => setEditForm({...editForm, targetJob: e.target.value})}
+                  onChange={(e) => {
+                    setEditForm({...editForm, targetJob: e.target.value});
+                    setSaveError(null);
+                    setSaveSuccess(false);
+                  }}
                   disabled={isSaving}
                   placeholder="목표 직무를 입력하세요"
                 />
@@ -735,12 +862,12 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           </div>
         </CardHeader>
         <CardContent>
-          {/* 학습프로필 미설정 시 안내 문구 */}
-          {!profileCompleted && (
+          {/* 학습프로필 상태 안내 문구 */}
+          {!isProfileSaved ? (
             <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-yellow-800">
-                  기능을 이용하시려면 학습프로필을 먼저 등록해주세요.
+                  아직 학습 프로필이 설정되지 않았습니다. 이름, 전공, 목표 직무를 입력해 주세요.
                 </p>
                 <Button 
                   variant="default" 
@@ -752,6 +879,12 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
                   학습프로필 설정
                 </Button>
               </div>
+            </div>
+          ) : (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                저장된 학습 프로필입니다. 필요하다면 언제든 수정할 수 있습니다.
+              </p>
             </div>
           )}
           
