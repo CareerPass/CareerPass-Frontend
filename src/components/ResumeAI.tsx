@@ -154,6 +154,9 @@ export function ResumeAI() {
         setSaveSuccess(true);
         console.log('자기소개서 저장 성공:', response);
         
+        // 1) 자기소개서 저장 완료 시 introduction.id를 localStorage에 저장
+        localStorage.setItem("lastIntroductionId", String(response.id));
+        
         // 자기소개서 저장 이벤트 발생 (LearningProfile에서 리스닝)
         window.dispatchEvent(new CustomEvent('introductionSaved'));
         

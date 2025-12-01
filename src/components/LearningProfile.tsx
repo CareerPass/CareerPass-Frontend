@@ -23,7 +23,7 @@ import {
   ArrowLeft,
   AlertCircle
 } from "lucide-react";
-import { fetchUserLearningProfile, updateUserProfile } from "../api";
+import { fetchUserLearningProfile, updateUserProfile, getFeedbackByIntroductionId } from "../api";
 
 interface LearningProfileProps {
   userId?: number;
@@ -186,6 +186,14 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     };
   }, []);
 
+  // 3) 최근 자기소개서 피드백 불러오기
+  useEffect(() => {
+    const lastId = localStorage.getItem("lastIntroductionId");
+    if (lastId) {
+      getFeedbackByIntroductionId(Number(lastId)).then(setIntroFeedbacks);
+    }
+  }, []);
+
   const [achievements] = useState([
     {
       type: "certification",
@@ -263,6 +271,10 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     date: string;
   }>>([]);
   const [isLoadingIntroductions, setIsLoadingIntroductions] = useState(false);
+  
+  // 3) 자기소개서 피드백 상태
+  const [introFeedbacks, setIntroFeedbacks] = useState<any[]>([]);
+  const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
 
   const handleEditProfile = () => {
     // 모달 열 때 입력 필드 초기값 설정
@@ -345,8 +357,30 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     setShowInterviewDetail(true);
   };
 
-  const handleResumeClick = () => {
-    setShowResumeDetail(true);
+  const handleResumeClick = async () => {
+    // 카드 클릭 시 lastIntroductionId로 피드백 불러오기
+    const lastId = localStorage.getItem("lastIntroductionId");
+    if (lastId) {
+      try {
+        const feedback = await getFeedbackByIntroductionId(Number(lastId));
+        // 응답이 배열인지 단일 객체인지 확인
+        if (Array.isArray(feedback) && feedback.length > 0) {
+          setSelectedFeedback(feedback[0]);
+        } else if (feedback) {
+          setSelectedFeedback(feedback);
+        } else {
+          setSelectedFeedback(null);
+        }
+        setShowResumeDetail(true);
+      } catch (error) {
+        console.error('피드백 불러오기 실패:', error);
+        setSelectedFeedback(null);
+        setShowResumeDetail(true);
+      }
+    } else {
+      setSelectedFeedback(null);
+      setShowResumeDetail(true);
+    }
   };
 
   // 면접 상세 화면
@@ -536,7 +570,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <FileText className="w-8 h-8" />
             자소서 피드백 상세
           </h1>
-          <p className="text-muted-foreground">네이버 인턴십 지원서 상세 피드백입니다</p>
+          <p className="text-muted-foreground">백엔드 개발 직무 자기소개서 상세 피드백입니다</p>
         </div>
 
         {/* 자소서 기본 정보 */}
@@ -551,11 +585,11 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">제목</p>
-                <p className="font-medium">네이버 인턴십 지원서</p>
+                <p className="font-medium">백엔드 개발 직무</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">작성 날짜</p>
-                <p className="font-medium">2024.12.20</p>
+                <p className="font-medium">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">피드백 상태</p>
@@ -576,13 +610,21 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">📋 전체적인 분석</h4>
-              <p className="text-blue-800">
-                전체적으로 경험을 구체적으로 잘 서술하셨습니다. 특히 프로젝트 성과를 수치로 표현한 부분이 인상적입니다. 
-                다만 지원동기 부분에서 회사에 대한 이해도를 더 보여주시면 좋겠습니다.
-              </p>
-            </div>
+            {selectedFeedback && selectedFeedback.feedback ? (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
+                <div className="text-blue-800 prose prose-sm max-w-none whitespace-pre-wrap break-words">
+                  {selectedFeedback.feedback}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">📋 전체적인 분석</h4>
+                <p className="text-blue-800">
+                  피드백을 불러오는 중입니다...
+                </p>
+              </div>
+            )}
             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
               <h4 className="font-medium text-green-900 mb-2">✅ 강점</h4>
               <ul className="text-green-800 list-disc list-inside space-y-1">
@@ -1044,9 +1086,8 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
         ) : (
           <div className="space-y-4">
             {recentIntroductions.map((intro) => {
-              const title = intro.title && intro.title.trim().length > 0
-                ? intro.title
-                : "네이버 자기소개서";
+              // 카드 이름을 "백엔드 개발 직무"로 하드코딩
+              const title = "백엔드 개발 직무";
               const summary = "AI가 분석한 핵심 개선 포인트가 정리된 자기소개서입니다.";
 
               return (
@@ -1074,6 +1115,44 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           </div>
         )}
       </div>
+
+      {/* 4) 최근 자기소개서 피드백 섹션 */}
+      {introFeedbacks.length > 0 && (
+        <div className="space-y-6">
+          <h2 className="flex items-center gap-2">
+            <FileText className="w-6 h-6 text-primary" />
+            최근 자기소개서 피드백
+          </h2>
+          
+          <div className="space-y-4">
+            {introFeedbacks.map((feedback, index) => (
+              <Card 
+                key={index} 
+                className="border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <CardContent className="p-6">
+                  <div className="space-y-3">
+                    {feedback.feedback && (
+                      <div>
+                        <h4 className="font-medium text-sm text-muted-foreground mb-2">피드백</h4>
+                        <p className="text-gray-700 whitespace-pre-wrap break-words">
+                          {feedback.feedback}
+                        </p>
+                      </div>
+                    )}
+                    {feedback.savedId && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        <span>저장 ID: {feedback.savedId}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

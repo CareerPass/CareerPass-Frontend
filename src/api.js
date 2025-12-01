@@ -1021,48 +1021,14 @@ export const getFeedbackById = async (id) => {
     }
 };
 
-// GET: http://13.125.192.47:8090/api/feedback/introduction/{introductionId} - 자기소개서별 피드백 조회
-// 요청 파라미터: introductionId (path, integer)
-// 요청 바디: 없음
-// 응답: 피드백 배열
-export const getFeedbackByIntroductionId = async (introductionId) => {
-    try {
-        if (!introductionId) {
-            throw new Error('introductionId는 필수입니다.');
-        }
-
-        const response = await fetch(`http://13.125.192.47:8090/api/feedback/introduction/${introductionId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
-            console.error('API 오류:', {
-                status: response.status,
-                statusText: response.statusText,
-                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
-                errorData: errorJson
-            });
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
-        }
-
-        const data = await response.json();
-        console.log(`GET /api/feedback/introduction/${introductionId} 응답:`, data);
-        return data;
-    } catch (error) {
-        console.error('getFeedbackByIntroductionId 오류 상세:', {
-            message: error.message,
-            stack: error.stack,
-            error: error,
-            introductionId: introductionId
-        });
-        throw error;
-    }
-};
+// GET: /api/feedback/introduction/{introductionId} - 자기소개서별 피드백 조회
+// 2) 피드백 조회 함수
+export async function getFeedbackByIntroductionId(id) {
+  const BASE_URL = API_BASE_URL || 'http://13.125.192.47:8090';
+  const res = await fetch(`${BASE_URL}/api/feedback/introduction/${id}`);
+  if (!res.ok) throw new Error("피드백 조회 실패");
+  return res.json();
+}
 
 // GET: http://13.125.192.47:8090/api/feedback/interview/{interviewId} - 면접별 피드백 조회
 // 요청 파라미터: interviewId (path, integer)
