@@ -60,3 +60,6 @@ const ws = createWebSocketConnection('ws://192.168.0.13:3000');
 - 환경 변수가 설정되지 않으면 기본값 `ws://localhost:3000`을 사용합니다
 - 개발 서버를 재시작해야 환경 변수 변경사항이 적용됩니다
 
+
+
+

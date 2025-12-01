@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { FileText, Upload, Bot, CheckCircle, Edit3, X, AlertCircle } from "lucide-react";
 import { requestResumeFeedback } from "../api";
+import ReactMarkdown from "react-markdown";
 
 export function ResumeAI() {
   const [currentStep, setCurrentStep] = useState<'upload' | 'write' | 'analysis' | 'chat'>('upload');
@@ -258,10 +259,10 @@ export function ResumeAI() {
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
                 <div 
-                  className="text-blue-800 whitespace-pre-wrap break-words"
+                  className="text-blue-800 prose prose-sm max-w-none"
                   style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                 >
-                  {feedback}
+                  <ReactMarkdown>{feedback}</ReactMarkdown>
                 </div>
               </div>
             ) : (

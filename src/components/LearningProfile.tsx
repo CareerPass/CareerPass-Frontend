@@ -22,6 +22,7 @@ import {
   X,
   ArrowLeft
 } from "lucide-react";
+import { fetchUserLearningProfile } from "../api";
 
 interface LearningProfileProps {
   userId?: number;
@@ -78,6 +79,24 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     setProfileCompleted(false);
     
     setIsLoading(false);
+  }, []);
+
+  // 자기소개서 리스트 로드
+  useEffect(() => {
+    async function loadIntroductions() {
+      try {
+        setIsLoadingIntroductions(true);
+        const profile = await fetchUserLearningProfile(1);
+        setRecentIntroductions(profile.recentIntroductions ?? []);
+      } catch (e) {
+        console.error('자기소개서 리스트 로드 실패:', e);
+        // 에러 발생 시 빈 배열로 설정
+        setRecentIntroductions([]);
+      } finally {
+        setIsLoadingIntroductions(false);
+      }
+    }
+    loadIntroductions();
   }, []);
 
   const [achievements] = useState([
@@ -150,26 +169,13 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     }
   ]);
 
-  const [recentResumes] = useState([
-    {
-      date: "2024.12.20",
-      title: "네이버 인턴십 지원서",
-      feedback: "자기소개서의 구체적인 경험 서술이 인상적입니다. 다만 지원동기 부분에서 회사에 대한 이해도를 더 보여주면 좋겠습니다.",
-      status: "피드백 완료"
-    },
-    {
-      date: "2024.12.15", 
-      title: "카카오 신입 개발자 지원서",
-      feedback: "기술적 역량에 대한 설명은 우수하나, 팀워크 경험을 구체적인 사례로 보완하면 더욱 강력한 자소서가 될 것입니다.",
-      status: "피드백 완료"
-    },
-    {
-      date: "2024.12.08",
-      title: "라인 개발자 지원서",
-      feedback: "전체적으로 균형잡힌 구성이나, 성장 스토리를 더 개인적이고 차별화된 관점으로 서술해보세요.",
-      status: "피드백 완료"
-    }
-  ]);
+  // 자기소개서 리스트 상태 (백엔드에서 가져옴)
+  const [recentIntroductions, setRecentIntroductions] = useState<Array<{
+    introductionId: number;
+    title: string | null;
+    date: string;
+  }>>([]);
+  const [isLoadingIntroductions, setIsLoadingIntroductions] = useState(false);
 
   const handleEditProfile = () => {
     // 모달 열 때 입력 필드 초기값 설정
@@ -894,29 +900,46 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           최근 자소서 기록
         </h2>
         
-        <div className="space-y-4">
-          {recentResumes.map((resume, index) => (
-            <Card 
-              key={index} 
-              className="border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-primary/20"
-              onClick={handleResumeClick}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="font-medium text-lg">{resume.title}</p>
-                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 rounded-full px-3 py-1">
-                    피드백 완료
-                  </Badge>
-                </div>
-                <p className="text-sm mb-3 text-gray-600 line-clamp-2">{resume.feedback}</p>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Calendar className="w-3 h-3" />
-                  {resume.date}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {isLoadingIntroductions ? (
+          <div className="text-center py-8 text-muted-foreground">
+            자기소개서 리스트를 불러오는 중...
+          </div>
+        ) : recentIntroductions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            아직 저장된 자기소개서 학습 기록이 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {recentIntroductions.map((intro) => {
+              const title = intro.title && intro.title.trim().length > 0
+                ? intro.title
+                : "네이버 자기소개서";
+              const summary = "AI가 분석한 핵심 개선 포인트가 정리된 자기소개서입니다.";
+
+              return (
+                <Card 
+                  key={intro.introductionId} 
+                  className="border-2 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-primary/20"
+                  onClick={handleResumeClick}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-medium text-lg">{title}</p>
+                      <Badge className="bg-blue-100 text-blue-700 border-blue-200 rounded-full px-3 py-1">
+                        피드백 완료
+                      </Badge>
+                    </div>
+                    <p className="text-sm mb-3 text-gray-600 line-clamp-2">{summary}</p>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      {intro.date}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

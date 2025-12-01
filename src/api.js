@@ -1364,6 +1364,42 @@ export const createIntroductionAIFeedback = async (userId, resumeContent) => {
 // 요청 파라미터: 없음
 // 요청 바디(JSON): { userId: number, resumeContent: string }
 // 응답: 피드백 객체 (feedback: string, userId: number)
+// 학습 프로필 조회 API
+// GET: {API_BASE_URL}/api/users/{userId} - 사용자 학습 프로필 조회
+// 요청 파라미터: userId (path, number, 기본값: 1)
+// 요청 바디: 없음
+// 응답: LearningProfileResponse { id, nickname, email, major, targetJob, profileCompleted, recentInterviews, recentIntroductions }
+export async function fetchUserLearningProfile(userId = 1) {
+  try {
+    const backendBaseUrl = API_BASE_URL || 'http://13.125.192.47:8090';
+    const url = `${backendBaseUrl}/api/users/${userId}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`failed to load learning profile: HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('GET /api/users/{userId} 응답:', data);
+    return data;
+  } catch (error) {
+    console.error('fetchUserLearningProfile 오류:', {
+      message: error.message,
+      stack: error.stack,
+      error: error,
+      userId: userId
+    });
+    throw error;
+  }
+}
+
 export async function requestResumeFeedback(userId, resumeContent) {
   try {
     if (!userId || !resumeContent) {
