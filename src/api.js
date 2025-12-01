@@ -844,7 +844,7 @@ export const uploadInterviewAudio = async (userId, jobApplied, file) => {
 // GET: http://13.125.192.47:8090/api/interview/{interviewId} - 면접 조회
 // 요청 파라미터: interviewId (path, integer)
 // 요청 바디: 없음
-// 응답: 면접 정보 객체 (fileUrl, jobApplied)
+// 응답 구조: { "fileUrl": "string", "jobApplied": "string" }
 export const getInterviewById = async (interviewId) => {
     try {
         if (!interviewId) {
@@ -859,15 +859,35 @@ export const getInterviewById = async (interviewId) => {
         });
 
         if (!response.ok) {
-            const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
+            // response body를 한 번만 읽기 (text로 먼저 읽고, JSON 파싱 시도)
+            let errorText = '';
+            let errorJson = null;
+            
+            try {
+                errorText = await response.text();
+                // text가 비어있지 않고 JSON 형식이면 파싱 시도
+                if (errorText && errorText.trim().startsWith('{')) {
+                    try {
+                        errorJson = JSON.parse(errorText);
+                    } catch {
+                        // JSON 파싱 실패 시 errorText 그대로 사용
+                    }
+                }
+            } catch (textError) {
+                console.warn('응답 body 읽기 실패:', textError);
+            }
+
+            const errorMessage = errorJson?.message || errorJson?.error || errorJson?.detail || errorText || '알 수 없는 오류';
+            
             console.error('API 오류:', {
                 status: response.status,
                 statusText: response.statusText,
-                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                url: `http://13.125.192.47:8090/api/interview/${interviewId}`,
+                message: errorMessage,
                 errorData: errorJson
             });
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+            
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorMessage}`);
         }
 
         const data = await response.json();

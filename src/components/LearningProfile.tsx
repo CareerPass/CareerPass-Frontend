@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -24,6 +25,74 @@ import {
   AlertCircle
 } from "lucide-react";
 import { fetchUserLearningProfile, updateUserProfile } from "../api";
+
+// 하드코딩된 자기소개서 피드백 (사용자 제공 내용 기반)
+const hardcodedFeedback = `## 전체적인 평가
+제공해주신 자기소개서는 시스템소프트웨어 개발자로서의 목표와 이를 위해 준비해 온 경험들이 잘 드러나 있습니다. 특히 '사용자가 보지 못하는 곳의 안정성을 책임지는 사람'이라는 표현을 통해 백엔드 및 시스템 영역에 대한 방향성이 분명하게 전달됩니다. 다만, 각 경험 간의 연결성과 구체적인 기술 스택/성과를 조금 더 보완하면 더 설득력 있는 자기소개서가 될 수 있습니다.
+
+## 강점 분석
+1. **진로 선택의 일관성**
+   - 컴퓨터공학과 전공 선택부터 백엔드/시스템 개발자를 목표로 한 이유까지 논리적으로 이어져 있습니다.
+   - ‘눈에 보이지 않는 영역의 안정성을 책임지는 사람’에 매력을 느꼈다는 부분은 지원 직무와 매우 잘 맞는 메시지입니다.
+
+2. **안정성에 대한 문제의식**
+   - 서버, 인프라, 시스템 레벨에서의 안정성을 중요하게 생각하는 태도가 잘 드러나 있습니다.
+   - 특히 장애 상황, 예측 불가능한 트래픽, 예외 케이스 처리 등 시스템 관점의 사고를 하고 있다는 점이 돋보입니다.
+
+3. **데이터 기반 문제 해결 태도**
+   - 단순히 '열심히 했다'가 아니라, 로그 분석, 지표 확인, 병목 구간 파악 등의 과정을 통해 문제를 해결하려는 태도가 강점입니다.
+
+4. **협업과 커뮤니케이션에 대한 인식**
+   - 팀 프로젝트에서의 역할, 프론트엔드와의 소통, API 스펙 조율 등 협업 경험을 언급한 점이 긍정적입니다.
+
+## 개선이 필요한 부분
+1. **구체적인 경험과 수치 보강**
+   - 예: "API 응답 속도를 개선했다", "안정성을 높였다"는 식의 표현보다는  
+     - *어떤 상황에서* (트래픽, 장애 유형 등)
+     - *어떤 지표를 기준으로* (응답 시간, 에러율 등)
+     - *얼마나 개선했는지* (예: 40% 단축, 에러율 30% 감소 등)
+     를 함께 적어주면 임팩트가 훨씬 커집니다.
+
+2. **기술 스택 명시**
+   - 사용한 언어, 프레임워크, 데이터베이스, 인프라 환경 등을 조금 더 구체적으로 언급하면 '시스템소프트웨어 개발자'로서의 역량이 더 분명하게 드러납니다.
+   - 예: Spring / Node.js / NestJS / MySQL / Redis / Kafka / Docker / Kubernetes 등 실제로 다뤄본 기술이 있다면 자연스럽게 녹여내세요.
+
+3. **토스(또는 지원 회사)와의 연결 강화**
+   - 단순히 "안정성이 중요한 회사라서 끌렸다"가 아니라,
+     - 해당 회사의 기술 블로그, 발표, 아키텍처 사례
+     - 사용하는 기술 스택
+     - 서비스 철학(예: 토스의 '집요함', '데이터 기반 의사결정' 등)
+     과 본인의 경험을 연결해 주면 설득력이 높아집니다.
+
+4. **문항 구조화**
+   - 하나의 긴 에세이 형식보다는, 문항별로 메시지를 분리하거나, 문단별로 주제를 명확히 하는 것이 좋습니다.
+   - 예를 들어:
+     1) 지원 동기 및 진로 선택 배경  
+     2) 안정성을 중시하게 된 계기와 관련 경험  
+     3) 데이터 기반 문제 해결 경험  
+     4) 협업 경험 및 커뮤니케이션 스타일  
+     5) 입사 후 기여하고 싶은 부분  
+     으로 나누면 읽는 사람이 이해하기 훨씬 편합니다.
+
+## 문장/표현 측면 피드백
+- 전체적으로 문장은 매끄럽고 한국어 표현도 자연스럽습니다.
+- 다만, 다음과 같은 점을 신경 쓰면 더 좋아질 수 있습니다.
+  - 비슷한 의미의 문장이 반복되지 않도록 정리
+  - "열심히", "최선을 다해" 같은 추상적인 표현보다, 구체적인 행동과 결과 위주로 작성
+  - 한 문단에 너무 많은 메시지를 담지 않기 (핵심 1~2개만 남기기)
+
+## AI 수정 자기소개서 활용 팁
+- AI가 생성해준 수정본(\`regen_resume\`)은 그대로 제출용으로 쓰기보다는,
+  - 구조(문단 구성, 흐름)
+  - 표현 방식(강조하는 부분, 정리된 문장)
+  을 참고용으로 활용하는 것을 추천합니다.
+- 특히, 본인이 실제로 경험하지 않은 내용이나 과장된 표현이 포함되지 않도록 반드시 본인의 언어로 재작성하는 과정이 필요합니다.
+
+## 종합 정리
+- 현재 자기소개서는 **방향성(시스템소프트웨어/백엔드 개발자)**, **가치관(안정성, 책임감)**, **문제 해결 태도(데이터 기반 분석)** 측면에서 매우 좋은 기반을 갖추고 있습니다.
+- 여기에 **구체적인 수치/지표**, **기술 스택**, **회사와의 명확한 연결점**을 보강하면 실제 현업 개발자/면접관에게도 강하게 각인되는 자기소개서가 될 수 있습니다.
+
+앞으로는 실제 프로젝트 코드와 시스템 구성도를 기반으로, 성능 개선이나 장애 대응 경험을 더 쌓아가면서 이를 자기소개서와 포트폴리오에 구조적으로 정리해 보시면 좋겠습니다.`;
 
 interface LearningProfileProps {
   userId?: number;
@@ -156,7 +225,24 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     try {
       setIsLoadingIntroductions(true);
       const profile = await fetchUserLearningProfile(1);
-      setRecentIntroductions(profile.recentIntroductions ?? []);
+      let intros = profile.recentIntroductions ?? [];
+
+      // [시연용] 항상 하드코딩된 최근 자소서 1개가 "저장된 것처럼" 보이도록 추가
+      const hardcodedIntro = {
+        introductionId: 9999,
+        title: "토스 자기소개서",
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')
+      };
+
+      const existsHardcoded = intros.some(
+        (intro: any) => intro.introductionId === hardcodedIntro.introductionId
+      );
+
+      if (!existsHardcoded) {
+        intros = [hardcodedIntro, ...intros];
+      }
+
+      setRecentIntroductions(intros);
     } catch (e) {
       console.error('자기소개서 리스트 로드 실패:', e);
       // 에러 발생 시 빈 배열로 설정
@@ -232,31 +318,59 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     }
   ]);
 
+  // [시연용] 하드코딩된 최근 면접 기록 (사용자 제공 자기소개서 기반)
   const [recentInterviews] = useState([
     {
-      date: "2024.12.18",
-      company: "네이버",
-      position: "백엔드 개발자",
-      feedback: "기술적 지식은 우수하나 소통 능력 개선 필요",
-      rating: 3.5
-    },
-    {
-      date: "2024.12.12",
-      company: "카카오",
-      position: "서버 개발자", 
-      feedback: "문제 해결 능력이 뛰어나고 학습 의욕이 높음",
-      rating: 4.2
-    },
-    {
-      date: "2024.12.05",
+      date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, ''),
       company: "토스",
-      position: "백엔드 엔지니어",
-      feedback: "프로젝트 경험을 더 쌓아서 실무 역량 강화 권장",
-      rating: 3.8
+      position: "시스템소프트웨어 개발자",
+      major: "컴퓨터공학과",
+      feedback: "제공된 자기소개서 기반 면접 피드백입니다.",
+      rating: 4.5,
+      questions: [
+        "자기소개를 해주세요.",
+        "백엔드 개발자로서 안정성을 중요하게 생각하는 이유와 경험을 설명해주세요.",
+        "팀 프로젝트에서 협업 경험과 의견 조율 과정을 구체적으로 설명해주세요.",
+        "데이터 기반 문제 해결 경험에 대해 자세히 설명하고, 어떤 데이터를 어떻게 분석했는지 말씀해주세요.",
+        "토스에 지원한 동기와 입사 후 어떤 기여를 하고 싶은지 말씀해주세요."
+      ],
+      answers: [
+        "네, 안녕하세요. 저는 '사용자가 보지 못하는 곳의 안정성을 책임지는 사람'에 매력을 느껴 백엔드 개발자를 목표로 해왔습니다. 컴퓨터공학과 전공 과정에서 자료구조·운영체제·데이터베이스 등 핵심 이론을 학습하며, 눈에 보이는 기능보다 시스템이 견고하게 동작하도록 만드는 설계와 구조에 더 큰 흥미를 느꼈습니다. 특히 서버가 예측 불가한 트래픽이나 오류 상황에서도 안정적으로 서비스를 제공해야 한다는 점에서 백엔드 개발자의 책임감과 판단력이 중요하다는 사실을 실감했고, 이러한 부분은 금융 서비스의 특성상 안정성이 핵심인 토스의 개발 문화와 가장 잘 맞닿아 있다고 느꼈습니다.",
+        "백엔드 개발은 서비스의 핵심 인프라를 담당하기 때문에 안정성이 최우선이라고 생각합니다. 과거 프로젝트에서 사용자 활동 로그를 분석해 API 응답 속도 저하 구간을 찾아내고, 쿼리 구조를 개선해 평균 응답 속도를 40% 단축했던 경험이 있습니다. 이 과정에서 작은 코드 변경이나 설계 오류가 전체 서비스에 미치는 영향을 직접 체감하며 안정성의 중요성을 깨달았습니다.",
+        "팀 프로젝트에서는 백엔드 개발자로서 프론트엔드 팀원과 API 스펙을 맞추는 과정에서 적극적으로 소통했습니다. 단순히 요청을 구현하는 것을 넘어, 왜 필요한지, 어떤 제약이 있는지, 더 나은 방식은 없는지를 먼저 질문하며 의견을 조율했습니다. 이를 통해 프로젝트 전체 흐름을 정리하고, 효율적인 협업을 이끌어낼 수 있었습니다.",
+        "프로젝트에서 대용량 데이터 처리 시 API 응답 속도 저하 문제가 발생했습니다. 저는 사용자 활동 로그를 수집하여 데이터베이스 쿼리 패턴과 인덱스 사용 현황을 분석했습니다. 특정 쿼리가 비효율적으로 동작하고 있음을 확인하고, 인덱스를 추가하고 쿼리 구조를 최적화하여 평균 응답 속도를 40% 단축시켰습니다. 이 경험을 통해 데이터 기반으로 문제를 진단하고 해결하는 중요성을 배웠습니다.",
+        "토스는 금융 서비스의 핵심인 안정성을 최우선으로 여기며, 수평적이고 데이터 기반의 의사결정 문화를 가지고 있다는 점에서 깊은 매력을 느꼈습니다. 저는 기술적 깊이를 계속 확장하고, 다양한 팀과 협력하여 사용자에게 신뢰할 수 있는 서비스를 제공하는 백엔드 개발자로 성장하고 싶습니다. 토스에서 이러한 성장 방향을 가장 잘 실현할 수 있다고 확신합니다."
+      ],
+      overallScore: 88,
+      overallFeedback: `## 전체적인 평가
+
+토스 시스템소프트웨어(백엔드) 개발자로서의 방향성과 강점을 잘 보여준 모의 면접이었습니다. 안정성, 데이터 기반 문제 해결, 협업에 대한 관점이 일관되게 드러난 점이 인상적입니다.
+
+## 잘한 점
+
+- **직무 이해도**: '사용자가 보지 못하는 곳의 안정성을 책임지는 사람'이라는 표현처럼, 백엔드/시스템 개발자의 역할을 정확히 이해하고 있습니다.
+
+- **구체적인 경험 제시**: API 응답 속도 40% 단축, 로그 분석을 통한 병목 구간 파악 등 숫자와 과정이 함께 제시되어 설득력이 높습니다.
+
+- **협업 경험**: 프론트엔드와의 API 스펙 조율, 일정 관리 등 팀 단위 협업 상황을 잘 설명했습니다.
+
+- **데이터 기반 사고**: 감이 아니라 로그·지표를 기반으로 문제를 정의하고 해결하는 접근이 토스 문화와도 잘 맞습니다.
+
+## 보완하면 좋은 점
+
+- **기술 스택 언급**: 사용했던 언어, 프레임워크, DB 등(예: Spring, Node.js, MySQL 등)을 조금 더 구체적으로 언급하면 기술적 깊이가 더 잘 드러납니다.
+
+- **토스와의 연결 강화**: 토스의 서비스/아키텍처, 기술 블로그 내용 등과 본인 경험을 더 직접적으로 연결해 주면 지원 동기가 더 설득력 있어집니다.
+
+- **답변 구조 정리**: 일부 답변은 메시지가 조금 길게 느껴질 수 있어, 결론 → 근거 → 사례 순으로만 깔끔하게 정리하면 전달력이 더 좋아집니다.
+
+## 종합 코멘트
+
+현재만으로도 안정성과 데이터 기반 문제 해결을 중시하는 백엔드 개발자로서 좋은 인상을 줄 수 있는 수준입니다. 향후에는 특정 기술 스택에 대한 깊이와, 실제 서비스 환경에서의 장애 대응/성능 최적화 경험을 더 쌓는다면 토스 백엔드 조직에서도 크게 성장할 수 있을 것으로 보입니다.`
     }
   ]);
 
-  // 자기소개서 리스트 상태 (백엔드에서 가져옴)
+  // 자기소개서 리스트 상태 (백엔드 + 하드코딩 1개)
   const [recentIntroductions, setRecentIntroductions] = useState<Array<{
     introductionId: number;
     title: string | null;
@@ -349,8 +463,18 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     setShowResumeDetail(true);
   };
 
-  // 면접 상세 화면
+  // 면접 상세 화면 (하드코딩된 최근 면접 기록 기반)
   if (showInterviewDetail) {
+    const interview = recentInterviews[0];
+    const interviewDate = interview.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '');
+    const interviewCompany = interview.company || "모의 면접";
+    const interviewPosition = interview.position || "백엔드 개발자";
+    const interviewMajor = interview.major || "컴퓨터공학과";
+    const interviewQuestions = interview.questions || [];
+    const interviewAnswers = interview.answers || [];
+    const interviewOverallScore = interview.overallScore || 0;
+    const interviewOverallFeedback = interview.overallFeedback || "";
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -366,92 +490,50 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
         </div>
         
         <div className="space-y-2">
-          <h1 className="text-primary flex items-center gap-2">
+          <h1 className="text-primary flex items체 gap-2">
             <MessageSquare className="w-8 h-8" />
             면접 피드백 상세
           </h1>
-          <p className="text-muted-foreground">네이버 백엔드 개발자 면접 결과 및 피드백입니다</p>
+          <p className="text-muted-foreground">{interviewCompany} {interviewPosition} 면접 결과 및 피드백입니다</p>
         </div>
 
-        {/* 요약 정보 카드 */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-2 rounded-xl">
-            <CardContent className="text-center p-6">
-              <div className="w-12 h-12 bg-blue-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                <Clock className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">6분 20초</p>
-                <p className="text-muted-foreground">총 진행 시간</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2 rounded-xl">
-            <CardContent className="text-center p-6">
-              <div className="w-12 h-12 bg-green-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                <MessageSquare className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">5개</p>
-                <p className="text-muted-foreground">총 질문 개수</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2 rounded-xl">
-            <CardContent className="text-center p-6">
-              <div className="w-12 h-12 bg-purple-100 rounded-full mx-auto flex items-center justify-center mb-3">
-                <Star className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-primary">3.5점</p>
-                <p className="text-muted-foreground">평균 점수</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* AI 영역별 피드백 */}
+        {/* 면접 정보 카드 */}
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-primary" />
-              AI 영역별 피드백
+              <FileText className="w-5 h-5 text-primary" />
+              면접 정보
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-              <span className="text-green-600">✅</span>
+            <div className="grid md:grid-cols-3 gap-4">
               <div>
-                <p className="font-medium text-green-900">기술적 깊이</p>
-                <p className="text-green-800">지원한 분야와 관련된 기술 스택에 대한 이해도가 우수합니다.</p>
+                <p className="text-sm text-muted-foreground">전공</p>
+                <p className="font-medium">{interviewMajor}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">직무</p>
+                <p className="font-medium">{interviewPosition}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">면접 날짜</p>
+                <p className="font-medium">{interviewDate}</p>
               </div>
             </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <span className="text-yellow-600">⚠️</span>
-              <div>
-                <p className="font-medium text-yellow-900">문제 해결 능력</p>
-                <p className="text-yellow-800">구체적인 경험을 들어 해결 과정을 설명하면 더 좋습니다.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <span className="text-blue-600">🤝</span>
-              <div>
-                <p className="font-medium text-blue-900">협업 능력</p>
-                <p className="text-blue-800">팀 프로젝트 경험과 소통 방식을 강조하세요.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-              <span className="text-purple-600">🚀</span>
-              <div>
-                <p className="font-medium text-purple-900">성장 의지</p>
-                <p className="text-purple-800">부족한 점을 인정하고 보완 계획을 제시하세요.</p>
-              </div>
-            </div>
+          </CardContent>
+        </Card>
+
+        {/* 종합 점수 카드 */}
+        <Card className="border-2 rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-primary" />
+              종합 점수
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center p-6">
+            <p className="text-5xl font-bold text-primary">{interviewOverallScore}점</p>
+            <p className="text-muted-foreground mt-2">AI가 평가한 면접 종합 점수입니다.</p>
           </CardContent>
         </Card>
 
@@ -462,13 +544,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <CardDescription>각 질문에 대한 답변 분석 결과입니다</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              "자기소개를 해주세요.",
-              "본인의 강점과 약점은 무엇인가요?",
-              "팀 프로젝트에서 갈등이 생겼을 때 어떻게 해결하나요?",
-              "기술적으로 어려웠던 문제를 해결한 경험이 있나요?",
-              "우리 회사에 지원한 이유는 무엇인가요?"
-            ].map((question, index) => (
+            {interviewQuestions.map((question, index) => (
               <div key={index} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">질문 {index + 1}</h4>
@@ -479,13 +555,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
                 </div>
                 <p className="text-muted-foreground">{question}</p>
                 <div className="bg-muted/50 p-3 rounded border-l-4 border-primary/20">
-                  <p className="text-sm text-muted-foreground">
-                    {index === 0 ? "네, 안녕하세요. 저는 주로 백엔드 개발에 관심이 많아 Node.js와 Python을 활용한 프로젝트를 여러 개 진행했습니다..." :
-                     index === 1 ? "제 강점은 문제 해결 능력입니다. 복잡한 문제를 단계별로 나누어 체계적으로 접근하는 편이고, 약점은 때로는 완벽주의 성향이 강해서..." :
-                     index === 2 ? "팀 프로젝트에서 의견 충돌이 있을 때는 먼저 각자의 입장을 충분히 들어보고, 공통의 목표를 다시 확인한 후..." :
-                     index === 3 ? "네, 최근 프로젝트에서 대용량 데이터 처리 시 성능 이슈가 발생했는데, 데이터베이스 인덱싱과 쿼리 최적화를 통해..." :
-                     "네이버는 기술 혁신을 통해 사용자의 일상을 편리하게 만든다는 비전에 공감했고, 특히 검색과 AI 기술 분야에서..."}
-                  </p>
+                  <p className="text-sm text-muted-foreground italic">답변 내용: {interviewAnswers[index] || "답변 내용이 없습니다."}</p>
                 </div>
               </div>
             ))}
@@ -501,13 +571,36 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <p className="text-primary font-medium mb-2">📋 전체적인 평가</p>
-              <p className="text-gray-700 leading-relaxed">
-                기술적 지식은 우수하나 소통 능력 개선이 필요합니다. 특히 복잡한 기술 개념을 
-                쉽게 설명하는 연습을 권장합니다. 전반적으로 면접에 임하는 자세가 좋고, 
-                자신의 경험을 구체적으로 설명하는 부분이 인상적이었습니다.
-              </p>
+            <div className="bg-white/70 p-6 rounded-lg border border-primary/20">
+              <div 
+                className="text-gray-800 prose prose-sm max-w-none leading-relaxed"
+                style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+              >
+                <ReactMarkdown
+                  components={{
+                    h2: ({node, ...props}) => (
+                      <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-200" {...props} />
+                    ),
+                    p: ({node, ...props}) => (
+                      <p className="mb-4 text-gray-700 leading-relaxed" {...props} />
+                    ),
+                    ol: ({node, ...props}) => (
+                      <ol className="list-decimal list-outside ml-6 mb-4 space-y-2" {...props} />
+                    ),
+                    ul: ({node, ...props}) => (
+                      <ul className="list-disc list-outside ml-6 mb-4 space-y-2" {...props} />
+                    ),
+                    li: ({node, ...props}) => (
+                      <li className="mb-2 text-gray-700 leading-relaxed" {...props} />
+                    ),
+                    strong: ({node, ...props}) => (
+                      <strong className="font-semibold text-gray-900" {...props} />
+                    )
+                  }}
+                >
+                  {interviewOverallFeedback}
+                </ReactMarkdown>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -536,7 +629,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <FileText className="w-8 h-8" />
             자소서 피드백 상세
           </h1>
-          <p className="text-muted-foreground">네이버 인턴십 지원서 상세 피드백입니다</p>
+          <p className="text-muted-foreground">최근 자기소개서에 대한 AI 피드백입니다</p>
         </div>
 
         {/* 자소서 기본 정보 */}
@@ -551,11 +644,13 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">제목</p>
-                <p className="font-medium">네이버 인턴십 지원서</p>
+                <p className="font-medium">토스 자기소개서</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">작성 날짜</p>
-                <p className="font-medium">2024.12.20</p>
+                <p className="font-medium">
+                  {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">피드백 상태</p>
@@ -567,7 +662,31 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           </CardContent>
         </Card>
 
-        {/* AI 분석 결과 */}
+        {/* 원본 자기소개서 */}
+        <Card className="border-2 rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              원본 자기소개서
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h4 className="font-medium text-blue-900 mb-2">📝 원본 자기소개서</h4>
+              <p className="text-blue-800 whitespace-pre-wrap leading-relaxed">
+                저는 “사용자가 보지 못하는 곳의 안정성을 책임지는 사람”에 매력을 느껴 백엔드 개발자를 목표로 해왔습니다. 컴퓨터공학과 전공 과정에서 자료구조·운영체제·데이터베이스 등 핵심 이론을 학습하며, 눈에 보이는 기능보다 시스템이 견고하게 동작하도록 만드는 설계와 구조에 더 큰 흥미를 느꼈습니다. 특히 서버가 예측 불가한 트래픽이나 오류 상황에서도 안정적으로 서비스를 제공해야 한다는 점에서 백엔드 개발자의 책임감과 판단력이 중요하다는 사실을 실감했고, 이러한 부분은 금융 서비스의 특성상 안정성이 핵심인 토스의 개발 문화와 가장 잘 맞닿아 있다고 느꼈습니다.
+
+                팀 프로젝트에서는 “백엔드는 서비스의 중심축”이라는 생각으로 협업에 적극적으로 참여했습니다. 백엔드 특성상 여러 팀과 의견을 조율해야 하기 때문에 단순히 요청대로 기능을 구현하는 데서 멈추지 않고, 왜 필요한지, 어떤 제약이 있는지, 더 나은 구조는 없는지를 먼저 질문했습니다. 프론트엔드 팀원과 API 스펙을 맞추는 과정에서도 기능 구현보다 먼저 커뮤니케이션 구조와 일정 관리를 정리하여 프로젝트 전체 흐름을 조율했습니다. 이러한 경험은 다양한 직군이 빠르게 협력하며 문제를 해결하는 토스의 수평적 조직 문화와도 자연스럽게 연결된다고 생각합니다.
+
+                저는 백엔드 업무에서 필수적인 꼼꼼함과 데이터 기반 접근을 매우 중요하게 여깁니다. 데이터베이스 설계 시 작은 제약 조건 하나가 성능과 안정성에 큰 차이를 만들고, 일정 관리는 장애 대응 속도와 서비스 신뢰도에 직결되기 때문입니다. 실제로 프로젝트에서 사용자 활동 로그를 분석해 API 응답 속도 저하 구간을 찾아내고, 쿼리 구조를 개선해 평균 응답 속도를 40% 단축했습니다. 이 경험을 통해 “문제를 감으로 해결하지 않고, 데이터로 원인을 추적하는 것”이 백엔드 개발자의 핵심 태도임을 깨달았고, 이는 데이터 기반 의사결정을 중시하는 토스가 추구하는 방향과도 일치합니다.
+
+                백엔드 개발은 단순한 기술 구현을 넘어, 다양한 팀과 함께 사용자가 신뢰할 수 있는 서비스를 만드는 일이라 생각합니다. 저는 앞으로도 기술적 깊이를 넓히고, 변화에 빠르게 대응하며, 팀과 함께 더 나은 결정을 만들어가는 개발자로 성장하고 싶습니다. 그리고 이러한 성장 방향을 가장 잘 실현할 수 있는 곳이 토스의 백엔드 조직이라 확신합니다.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AI 분석 결과 (Markdown) */}
         <Card className="border-2 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -577,131 +696,12 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">📋 전체적인 분석</h4>
-              <p className="text-blue-800">
-                전체적으로 경험을 구체적으로 잘 서술하셨습니다. 특히 프로젝트 성과를 수치로 표현한 부분이 인상적입니다. 
-                다만 지원동기 부분에서 회사에 대한 이해도를 더 보여주시면 좋겠습니다.
-              </p>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <h4 className="font-medium text-green-900 mb-2">✅ 강점</h4>
-              <ul className="text-green-800 list-disc list-inside space-y-1">
-                <li>구체적인 성과 지표 활용 (예: 30% 향상, 15명 협업)</li>
-                <li>STAR 기법을 활용한 체계적인 경험 서술</li>
-                <li>전공 지식과 실무 역량의 연결성</li>
-                <li>논리적이고 일관된 문장 구성</li>
-              </ul>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <h4 className="font-medium text-yellow-900 mb-2">💡 개선 제안</h4>
-              <ul className="text-yellow-800 list-disc list-inside space-y-1">
-                <li>지원동기에서 회사의 핵심 가치와 본인의 목표 연결</li>
-                <li>첫 문단을 더 임팩트 있게 시작하는 방법 고려</li>
-                <li>차별화된 개인적 경험이나 관점 추가</li>
-                <li>네이버 특유의 기술 스택이나 문화에 대한 언급</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 문항별 상세 피드백 */}
-        <Card className="border-2 rounded-xl">
-          <CardHeader>
-            <CardTitle>문항별 상세 피드백</CardTitle>
-            <CardDescription>각 문항에 대한 AI 분석 결과입니다</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {[
-              {
-                title: "1. 자기소개 및 성장과정",
-                content: "저는 어릴 때부터 기술을 통해 사람들의 삶을 편리하게 만드는 것에 관심이 많았습니다. 대학에 입학한 후 컴퓨터공학을 전공하며 프로그래밍의 매력에 빠져...",
-                feedback: "개인적인 경험과 동기가 잘 드러나며, 전공 선택의 이유가 명확합니다. 다만 더 구체적인 에피소드를 추가하면 차별화될 수 있습니다.",
-                score: 85
-              },
-              {
-                title: "2. 지원동기 및 입사 후 포부",
-                content: "네이버는 한국을 대표하는 기술 기업으로, 검색부터 커머스, 클라우드까지 다양한 영역에서 혁신을 이끌고 있습니다. 특히 AI와 머신러닝 기술을 활용한...",
-                feedback: "회사에 대한 기본적인 이해는 있으나, 더 구체적인 사업 영역이나 기술 스택에 대한 언급이 있으면 좋겠습니다.",
-                score: 75
-              },
-              {
-                title: "3. 본인의 역량 및 경험",
-                content: "대학 재학 중 총 3개의 프로젝트를 진행했으며, 그 중 가장 의미있었던 것은 교내 식당 예약 시스템 개발 프로젝트입니다. 팀 리더로서 5명의 팀원과 함께...",
-                feedback: "프로젝트 경험이 구체적이고 성과가 명확합니다. 리더십과 기술적 역량이 잘 드러나는 좋은 사례입니다.",
-                score: 90
-              }
-            ].map((item, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">{item.title}</h4>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-primary">{item.score}점</span>
-                  </div>
-                </div>
-                <div className="bg-muted/50 p-3 rounded border-l-4 border-primary/20">
-                  <p className="text-sm text-muted-foreground mb-2">작성 내용:</p>
-                  <p className="text-sm">{item.content}</p>
-                </div>
-                <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                  <p className="text-sm font-medium text-blue-900 mb-1">AI 피드백:</p>
-                  <p className="text-sm text-blue-800">{item.feedback}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* AI 종합 피드백 */}
-        <Card className="border-2 rounded-xl bg-gradient-to-r from-primary/5 to-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-primary" />
-              AI 종합 피드백
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-primary/10 rounded-full mt-1">
-                  <MessageSquare className="w-4 h-4 text-primary" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-primary font-medium">📋 종합 평가</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    자기소개서의 구체적인 경험 서술이 인상적입니다. 특히 프로젝트에서의 리더십과 
-                    문제 해결 능력이 잘 드러나며, 기술적 역량에 대한 설명이 체계적입니다.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-green-100 rounded-full mt-1">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-green-700 font-medium">💪 핵심 강점</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    구체적인 수치와 성과를 활용한 경험 서술, STAR 기법을 통한 체계적인 구성, 
-                    그리고 기술적 지식과 실무 경험의 자연스러운 연결이 돋보입니다.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-100 rounded-full mt-1">
-                  <Target className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-blue-700 font-medium">🎯 개선 방향</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    지원동기 부분에서 네이버의 기술 스택이나 기업 문화에 대한 구체적인 언급을 
-                    추가하고, 개인만의 차별화된 경험이나 관점을 더 강조하면 완성도가 높아질 것입니다.
-                  </p>
-                </div>
+              <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
+              <div 
+                className="text-blue-800 prose prose-sm max-w-none"
+                style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+              >
+                <ReactMarkdown>{hardcodedFeedback}</ReactMarkdown>
               </div>
             </div>
           </CardContent>
@@ -1046,7 +1046,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             {recentIntroductions.map((intro) => {
               const title = intro.title && intro.title.trim().length > 0
                 ? intro.title
-                : "네이버 자기소개서";
+                : "토스 자기소개서";
               const summary = "AI가 분석한 핵심 개선 포인트가 정리된 자기소개서입니다.";
 
               return (
