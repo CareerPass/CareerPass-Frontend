@@ -713,7 +713,7 @@ export function InterviewAI() {
 
       
       <Card className="border-2 rounded-xl">
-        <CardHeader className="py-6">
+        <CardHeader className="py-12">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
