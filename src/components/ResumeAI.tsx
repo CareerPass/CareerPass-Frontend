@@ -6,12 +6,13 @@ import { Textarea } from "./ui/textarea";
 import { FileText, Upload, Bot, CheckCircle, Edit3, X, AlertCircle, Save } from "lucide-react";
 import { requestResumeFeedback, createIntroduction } from "../api";
 import ReactMarkdown from "react-markdown";
+import { IntroFeedbackResponse } from "../types/feedback";
 
 export function ResumeAI() {
   const [currentStep, setCurrentStep] = useState<'upload' | 'write' | 'analysis' | 'chat'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [directWriteText, setDirectWriteText] = useState('');
-  const [feedback, setFeedback] = useState<string>('');
+  const [aiResult, setAiResult] = useState<IntroFeedbackResponse | null>(null);
   const [error, setError] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,11 +70,68 @@ export function ResumeAI() {
 
     try {
       // API 호출
-      const response = await requestResumeFeedback(finalUserId, resumeContent);
+      const result = await requestResumeFeedback(finalUserId, resumeContent);
       
-      // 응답에서 feedback 추출
-      if (response && response.feedback) {
-        setFeedback(response.feedback);
+      // API 응답 구조 확인을 위한 로그
+      console.log('ResumeAI API 응답 전체:', result);
+      const responseKeys = Object.keys(result || {});
+      console.log('응답 키 목록:', responseKeys);
+      console.log('각 키의 값:', responseKeys.reduce((acc, key) => {
+        acc[key] = typeof result[key] === 'string' 
+          ? (result[key].substring(0, 100) + (result[key].length > 100 ? '...' : ''))
+          : result[key];
+        return acc;
+      }, {} as any));
+      
+      // 응답 검증 및 상태 저장
+      if (result && result.feedback) {
+        // 백엔드 응답 구조에 맞게 필드 매핑 (모든 가능한 필드명 시도)
+        const mappedResult: IntroFeedbackResponse = {
+          originalResume: result.originalResume 
+            || result.original_resume
+            || result.originalResumeContent
+            || result.resumeContent 
+            || result.resume_content
+            || result.original 
+            || result.coverLetter
+            || result.cover_letter
+            || resumeContent, // 백엔드에서 없으면 사용자 입력값 사용
+          feedback: result.feedback || '',
+          regenResume: result.regenResume 
+            || result.regen_resume
+            || result.revisedResume 
+            || result.revised_resume
+            || result.revised 
+            || result.revisedResumeContent
+            || result.revised_resume_content
+            || result.improvedResume
+            || result.improved_resume
+            || result.enhancedResume
+            || result.enhanced_resume
+            || result.updatedResume
+            || result.updated_resume
+            || result.modifiedResume
+            || result.modified_resume
+            || result.regeneratedResume
+            || result.regenerated_resume
+            || result.newResume
+            || result.new_resume
+            || ''
+        };
+        
+        console.log('매핑된 결과:', {
+          originalResume: mappedResult.originalResume ? '있음 (' + mappedResult.originalResume.substring(0, 50) + '...)' : '없음',
+          feedback: mappedResult.feedback ? '있음' : '없음',
+          regenResume: mappedResult.regenResume ? '있음 (' + mappedResult.regenResume.substring(0, 50) + '...)' : '없음'
+        });
+        
+        // 수정된 자기소개서가 없으면 경고
+        if (!mappedResult.regenResume || !mappedResult.regenResume.trim()) {
+          console.warn('수정된 자기소개서 필드를 찾을 수 없습니다. 응답의 모든 키:', responseKeys);
+          console.warn('응답 전체 내용:', JSON.stringify(result, null, 2));
+        }
+        
+        setAiResult(mappedResult);
         setCurrentStep('chat');
       } else {
         throw new Error('피드백 응답 형식이 올바르지 않습니다.');
@@ -154,6 +212,9 @@ export function ResumeAI() {
         setSaveSuccess(true);
         console.log('자기소개서 저장 성공:', response);
         
+        // 1) 자기소개서 저장 완료 시 introduction.id를 localStorage에 저장
+        localStorage.setItem("lastIntroductionId", String(response.id));
+        
         // 자기소개서 저장 이벤트 발생 (LearningProfile에서 리스닝)
         window.dispatchEvent(new CustomEvent('introductionSaved'));
         
@@ -191,7 +252,6 @@ export function ResumeAI() {
       setIsSaving(false);
     }
   };
-
 
   // 직접 작성하기 페이지
   if (currentStep === 'write') {
@@ -338,15 +398,58 @@ export function ResumeAI() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {feedback ? (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
-                <div 
-                  className="text-blue-800 prose prose-sm max-w-none"
-                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                >
-                  <ReactMarkdown>{feedback}</ReactMarkdown>
-                </div>
+            {aiResult ? (
+              <div className="space-y-6 mt-6">
+                {/* 원본 자기소개서 */}
+                <section className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h2 className="text-lg font-semibold mb-2">📝 원본 자기소개서</h2>
+                  <div 
+                    className="text-gray-800 whitespace-pre-wrap break-words"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                  >
+                    {aiResult.originalResume && aiResult.originalResume.trim() ? (
+                      <ReactMarkdown>{aiResult.originalResume}</ReactMarkdown>
+                    ) : (
+                      <p className="text-gray-500 italic">원본 자기소개서 내용이 없습니다.</p>
+                    )}
+                  </div>
+                </section>
+
+                {/* AI 피드백 */}
+                <section className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h2 className="text-lg font-semibold mb-2">💡 AI 피드백</h2>
+                  <div 
+                    className="prose prose-sm max-w-none text-gray-900"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                  >
+                    {aiResult.feedback && aiResult.feedback.trim() ? (
+                      <ReactMarkdown>{aiResult.feedback}</ReactMarkdown>
+                    ) : (
+                      <p className="text-gray-500 italic">피드백 내용이 없습니다.</p>
+                    )}
+                  </div>
+                </section>
+
+                {/* AI 수정 자기소개서 */}
+                <section className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h2 className="text-lg font-semibold mb-2">✨ AI 수정 자기소개서</h2>
+                  <div 
+                    className="text-gray-800 whitespace-pre-wrap break-words"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                  >
+                    {aiResult.regenResume && aiResult.regenResume.trim() ? (
+                      <ReactMarkdown>{aiResult.regenResume}</ReactMarkdown>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-yellow-800 text-sm">
+                          수정된 자기소개서가 제공되지 않았습니다. 
+                          <br />
+                          콘솔을 확인하여 API 응답 구조를 확인해주세요.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
             ) : (
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -374,7 +477,7 @@ export function ResumeAI() {
             <div className="flex justify-end">
               <Button 
                 onClick={handleSaveIntroduction}
-                disabled={isSaving || !feedback || !directWriteText.trim()}
+                disabled={isSaving || !aiResult || !directWriteText.trim()}
                 className="px-6"
               >
                 <Save className="w-4 h-4 mr-2" />

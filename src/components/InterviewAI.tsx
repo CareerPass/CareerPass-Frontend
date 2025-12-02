@@ -37,7 +37,7 @@ export function InterviewAI() {
   };
 
   const [showResumeUpload, setShowResumeUpload] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const questions = fetchedQuestions;
     
@@ -53,37 +53,43 @@ export function InterviewAI() {
     setError(null);
 
     try {
-      // Flask 백엔드 서버의 API 주소로 요청을 보냅니다.
-      const response = await fetch('http://13.125.192.47:8090/api/feedback/interview/{interviewID}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch("http://13.125.192.47:8090/api/interview/question-gen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          major: majorInput,
-          job_title: jobInput,
-          cover_letter: resumeText, 
+          userId: 1, // 시연용 하드코딩
+          coverLetter:
+            resumeText && resumeText.trim().length > 0
+              ? resumeText
+              : `${majorInput} ${jobInput} 자기소개 기반 질문입니다.`,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "면접 질문 생성에 실패했습니다. 서버를 확인해주세요.");
+        setError(data?.error || "면접 질문 생성에 실패했습니다.");
         setFetchedQuestions([]);
         return;
       }
-        
-      if (data.questions && data.questions.length > 0) {
-          setFetchedQuestions(data.questions);
-          setCurrentStep('preparation'); // 성공 시 준비 단계로 이동
+
+      // QuestionItemDto[] -> string[] 변환
+      const questionTexts = Array.isArray(data.questions)
+        ? data.questions.map((q: any) =>
+            typeof q === "string" ? q : q.text
+          )
+        : [];
+
+      if (questionTexts.length > 0) {
+        setFetchedQuestions(questionTexts);
+        setCurrentStep("preparation");
       } else {
-          setError("AI가 질문을 생성하지 못했습니다. 입력 정보를 확인해주세요.");
-          setFetchedQuestions([]);
+        setError("AI가 질문을 생성하지 못했습니다. 입력 정보를 확인해주세요.");
+        setFetchedQuestions([]);
       }
-        
-    } catch (e) {
-      setError("서버 연결에 실패했습니다. Flask 서버가 실행 중인지 확인해주세요.");
+
+    } catch (err: any) {
+      setError("서버 연결에 실패했습니다. 백엔드를 확인해주세요.");
       setFetchedQuestions([]);
     } finally {
       setIsLoading(false);
