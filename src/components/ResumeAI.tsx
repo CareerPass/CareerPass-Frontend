@@ -6,12 +6,13 @@ import { Textarea } from "./ui/textarea";
 import { FileText, Upload, Bot, CheckCircle, Edit3, X, AlertCircle, Save } from "lucide-react";
 import { requestResumeFeedback, createIntroduction } from "../api";
 import ReactMarkdown from "react-markdown";
+import { IntroFeedbackResponse } from "../types/feedback";
 
 export function ResumeAI() {
   const [currentStep, setCurrentStep] = useState<'upload' | 'write' | 'analysis' | 'chat'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [directWriteText, setDirectWriteText] = useState('');
-  const [feedback, setFeedback] = useState<string>('');
+  const [aiResult, setAiResult] = useState<IntroFeedbackResponse | null>(null);
   const [error, setError] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,11 +70,11 @@ export function ResumeAI() {
 
     try {
       // API 호출
-      const response = await requestResumeFeedback(finalUserId, resumeContent);
+      const result = await requestResumeFeedback(finalUserId, resumeContent);
       
-      // 응답에서 feedback 추출
-      if (response && response.feedback) {
-        setFeedback(response.feedback);
+      // 응답 검증 및 상태 저장
+      if (result && result.feedback) {
+        setAiResult(result as IntroFeedbackResponse);
         setCurrentStep('chat');
       } else {
         throw new Error('피드백 응답 형식이 올바르지 않습니다.');
@@ -153,6 +154,9 @@ export function ResumeAI() {
       if (response && response.id) {
         setSaveSuccess(true);
         console.log('자기소개서 저장 성공:', response);
+        
+        // 1) 자기소개서 저장 완료 시 introduction.id를 localStorage에 저장
+        localStorage.setItem("lastIntroductionId", String(response.id));
         
         // 자기소개서 저장 이벤트 발생 (LearningProfile에서 리스닝)
         window.dispatchEvent(new CustomEvent('introductionSaved'));
@@ -338,15 +342,40 @@ export function ResumeAI() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {feedback ? (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">📋 AI 피드백</h4>
-                <div 
-                  className="text-blue-800 prose prose-sm max-w-none"
-                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                >
-                  <ReactMarkdown>{feedback}</ReactMarkdown>
-                </div>
+            {aiResult ? (
+              <div className="space-y-6 mt-6">
+                {/* 원본 자기소개서 */}
+                <section className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h2 className="text-lg font-semibold mb-2">📝 원본 자기소개서</h2>
+                  <div 
+                    className="text-gray-800 whitespace-pre-wrap break-words"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                  >
+                    <ReactMarkdown>{aiResult.originalResume}</ReactMarkdown>
+                  </div>
+                </section>
+
+                {/* AI 피드백 */}
+                <section className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h2 className="text-lg font-semibold mb-2">💡 AI 피드백</h2>
+                  <div 
+                    className="prose prose-sm max-w-none text-gray-900"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                  >
+                    <ReactMarkdown>{aiResult.feedback}</ReactMarkdown>
+                  </div>
+                </section>
+
+                {/* AI 수정 자기소개서 */}
+                <section className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h2 className="text-lg font-semibold mb-2">✨ AI 수정 자기소개서</h2>
+                  <div 
+                    className="text-gray-800 whitespace-pre-wrap break-words"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                  >
+                    <ReactMarkdown>{aiResult.regenResume}</ReactMarkdown>
+                  </div>
+                </section>
               </div>
             ) : (
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -374,7 +403,7 @@ export function ResumeAI() {
             <div className="flex justify-end">
               <Button 
                 onClick={handleSaveIntroduction}
-                disabled={isSaving || !feedback || !directWriteText.trim()}
+                disabled={isSaving || !aiResult || !directWriteText.trim()}
                 className="px-6"
               >
                 <Save className="w-4 h-4 mr-2" />

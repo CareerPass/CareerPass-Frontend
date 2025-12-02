@@ -36,8 +36,13 @@ export function InterviewAI() {
     setJobInput("");
   };
 
+<<<<<<< HEAD
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+=======
+  const [showResumeUpload, setShowResumeUpload] = useState(true);
+  const timerRef = useRef<NodeJS.Timeout>();
+>>>>>>> origin/main
 
   const questions = fetchedQuestions;
     
@@ -720,7 +725,11 @@ export function InterviewAI() {
 
       
       <Card className="border-2 rounded-xl">
+<<<<<<< HEAD
         <CardHeader className="min-h-[220px] flex flex-col justify-center">
+=======
+        <CardHeader className="min-h-[200px]">
+>>>>>>> origin/main
           <div className="flex items-center justify-between h-full">
             <div className="flex flex-col justify-center gap-3">
               <div className="flex items-center gap-2">
@@ -734,6 +743,7 @@ export function InterviewAI() {
           </div>
         </CardHeader>
         <CardContent className="space-y-8 py-8">
+<<<<<<< HEAD
           <div className="space-y-4">
             <Label htmlFor="resume">자기소개서 내용</Label>
             <Textarea
@@ -759,6 +769,34 @@ export function InterviewAI() {
         </CardContent>
       </Card>
 
+=======
+            <div className="space-y-4">
+              <Label htmlFor="resume">자기소개서 내용</Label>
+              <Textarea
+                id="resume"
+                placeholder="자기소개서 내용을 입력해주세요..."
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                rows={22}
+                className="resize-none"
+              />
+            </div>
+            {resumeText.trim() && (
+              <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+                <div className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-green-900">자기소개서가 등록되었습니다</p>
+                    <p className="text-sm text-green-800">면접 시작 시 자기소개서 기반 질문이 포함됩니다.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+      </Card>
+
+
+>>>>>>> origin/main
       
       <Card>
         <CardHeader>
