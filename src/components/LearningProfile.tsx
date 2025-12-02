@@ -26,6 +26,24 @@ import {
 } from "lucide-react";
 import { fetchUserLearningProfile, updateUserProfile } from "../api";
 
+// 하드코딩된 원본 자기소개서
+const hardcodedOriginalResume = `저는 "사용자가 보지 못하는 곳의 안정성을 책임지는 사람"에 매력을 느껴 백엔드 개발자를 목표로 해왔습니다. 컴퓨터공학과 전공 과정에서 자료구조·운영체제·데이터베이스 등 핵심 이론을 학습하며, 눈에 보이는 기능보다 시스템이 견고하게 동작하도록 만드는 설계와 구조에 더 큰 흥미를 느꼈습니다. 특히 서버가 예측 불가한 트래픽이나 오류 상황에서도 안정적으로 서비스를 제공해야 한다는 점에서 백엔드 개발자의 책임감과 판단력이 중요하다는 사실을 실감했고, 이러한 부분은 금융 서비스의 특성상 안정성이 핵심인 토스의 개발 문화와 가장 잘 맞닿아 있다고 느꼈습니다.
+
+팀 프로젝트에서는 "백엔드는 서비스의 중심축"이라는 생각으로 협업에 적극적으로 참여했습니다. 백엔드 특성상 여러 팀과 의견을 조율해야 하기 때문에 단순히 요청대로 기능을 구현하는 데서 멈추지 않고, 왜 필요한지, 어떤 제약이 있는지, 더 나은 구조는 없는지를 먼저 질문했습니다. 프론트엔드 팀원과 API 스펙을 맞추는 과정에서도 기능 구현보다 먼저 커뮤니케이션 구조와 일정 관리를 정리하여 프로젝트 전체 흐름을 조율했습니다. 이러한 경험은 다양한 직군이 빠르게 협력하며 문제를 해결하는 토스의 수평적 조직 문화와도 자연스럽게 연결된다고 생각합니다.
+
+저는 백엔드 업무에서 필수적인 꼼꼼함과 데이터 기반 접근을 매우 중요하게 여깁니다. 데이터베이스 설계 시 작은 제약 조건 하나가 성능과 안정성에 큰 차이를 만들고, 일정 관리는 장애 대응 속도와 서비스 신뢰도에 직결되기 때문입니다. 실제로 프로젝트에서 사용자 활동 로그를 분석해 API 응답 속도 저하 구간을 찾아내고, 쿼리 구조를 개선해 평균 응답 속도를 40% 단축했습니다. 이 경험을 통해 "문제를 감으로 해결하지 않고, 데이터로 원인을 추적하는 것"이 백엔드 개발자의 핵심 태도임을 깨달았고, 이는 데이터 기반 의사결정을 중시하는 토스가 추구하는 방향과도 일치합니다.
+
+백엔드 개발은 단순한 기술 구현을 넘어, 다양한 팀과 함께 사용자가 신뢰할 수 있는 서비스를 만드는 일이라 생각합니다. 저는 앞으로도 기술적 깊이를 넓히고, 변화에 빠르게 대응하며, 팀과 함께 더 나은 결정을 만들어가는 개발자로 성장하고 싶습니다. 그리고 이러한 성장 방향을 가장 잘 실현할 수 있는 곳이 토스의 백엔드 조직이라 확신합니다.`;
+
+// 하드코딩된 AI 수정 자기소개서
+const hardcodedRevisedResume = `저는 "사용자가 보지 못하는 곳의 안정성을 책임지는 사람"에 매력을 느껴 시스템 소프트웨어 개발자, 특히 백엔드 개발자를 목표로 해왔습니다. 컴퓨터공학과 전공 과정에서 자료구조, 운영체제, 데이터베이스 등 핵심 이론을 학습하며, 눈에 보이는 기능보다 시스템이 견고하게 동작하도록 만드는 설계와 구조에 더 큰 흥미를 느꼈습니다. 특히 서버가 예측 불가한 트래픽이나 오류 상황에서도 안정적으로 서비스를 제공해야 한다는 점에서 백엔드 개발자의 책임감과 판단력이 중요하다는 사실을 실감했습니다. 이러한 가치관은 금융 서비스의 특성상 안정성이 핵심인 토스의 개발 문화와 가장 잘 맞닿아 있다고 생각합니다.
+
+팀 프로젝트에서는 "백엔드는 서비스의 중심축"이라는 생각으로 협업에 적극적으로 참여했습니다. 백엔드 특성상 여러 팀과 의견을 조율해야 하기 때문에 단순히 요청대로 기능을 구현하는 데서 멈추지 않고, 왜 필요한지, 어떤 제약이 있는지, 더 나은 구조는 없는지를 먼저 질문했습니다. 프론트엔드 팀원과 API 스펙을 맞추는 과정에서도 기능 구현보다 먼저 커뮤니케이션 구조와 일정 관리를 정리하여 프로젝트 전체 흐름을 조율했습니다. 이러한 경험은 다양한 직군이 빠르게 협력하며 문제를 해결하는 토스의 수평적 조직 문화와도 자연스럽게 연결된다고 생각합니다.
+
+저는 백엔드 업무에서 필수적인 꼼꼼함과 데이터 기반 접근을 매우 중요하게 여깁니다. 데이터베이스 설계 시 작은 제약 조건 하나가 성능과 안정성에 큰 차이를 만들고, 일정 관리는 장애 대응 속도와 서비스 신뢰도에 직결되기 때문입니다. 실제로 프로젝트에서 대용량 트래픽 상황에서 API 응답 속도 저하 문제가 발생했을 때, 사용자 활동 로그를 수집하여 데이터베이스 쿼리 패턴과 인덱스 사용 현황을 분석했습니다. 특정 쿼리가 비효율적으로 동작하고 있음을 확인하고, 인덱스를 추가하고 쿼리 구조를 최적화하여 평균 응답 속도를 40% 단축했습니다. 이 경험을 통해 "문제를 감으로 해결하지 않고, 데이터로 원인을 추적하는 것"이 백엔드 개발자의 핵심 태도임을 깨달았고, 이는 데이터 기반 의사결정을 중시하는 토스가 추구하는 방향과도 일치합니다.
+
+백엔드 개발은 단순한 기술 구현을 넘어, 다양한 팀과 함께 사용자가 신뢰할 수 있는 서비스를 만드는 일이라 생각합니다. 토스의 기술 블로그와 아키텍처 사례를 통해 학습한 내용을 바탕으로, 저는 앞으로도 기술적 깊이를 넓히고, 변화에 빠르게 대응하며, 팀과 함께 더 나은 결정을 만들어가는 개발자로 성장하고 싶습니다. 그리고 이러한 성장 방향을 가장 잘 실현할 수 있는 곳이 토스의 시스템 소프트웨어 개발 조직이라 확신합니다.`;
+
 // 하드코딩된 자기소개서 피드백 (사용자 제공 내용 기반)
 const hardcodedFeedback = `## 전체적인 평가
 제공해주신 자기소개서는 시스템소프트웨어 개발자로서의 목표와 이를 위해 준비해 온 경험들이 잘 드러나 있습니다. 특히 '사용자가 보지 못하는 곳의 안정성을 책임지는 사람'이라는 표현을 통해 백엔드 및 시스템 영역에 대한 방향성이 분명하게 전달됩니다. 다만, 각 경험 간의 연결성과 구체적인 기술 스택/성과를 조금 더 보완하면 더 설득력 있는 자기소개서가 될 수 있습니다.
@@ -224,20 +242,27 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
   const loadIntroductions = async () => {
     try {
       setIsLoadingIntroductions(true);
-      const profile = await fetchUserLearningProfile(1);
-      let intros = profile.recentIntroductions ?? [];
-
+      
       // [시연용] 항상 하드코딩된 최근 자소서 1개가 "저장된 것처럼" 보이도록 추가
-      const hardcodedIntro = {
-        introductionId: 9999,
-        title: "토스 자기소개서",
-        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')
-      };
+      const hardcodedIntro = getHardcodedIntro();
 
+      let intros: any[] = [];
+      
+      try {
+        const profile = await fetchUserLearningProfile(1);
+        intros = profile.recentIntroductions ?? [];
+      } catch (e) {
+        console.error('자기소개서 리스트 로드 실패 (하드코딩 데이터는 표시):', e);
+        // API 호출 실패해도 하드코딩 데이터는 표시
+        intros = [];
+      }
+
+      // 하드코딩된 자소서가 이미 있는지 확인
       const existsHardcoded = intros.some(
         (intro: any) => intro.introductionId === hardcodedIntro.introductionId
       );
 
+      // 하드코딩된 자소서가 없으면 항상 추가
       if (!existsHardcoded) {
         intros = [hardcodedIntro, ...intros];
       }
@@ -245,8 +270,8 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
       setRecentIntroductions(intros);
     } catch (e) {
       console.error('자기소개서 리스트 로드 실패:', e);
-      // 에러 발생 시 빈 배열로 설정
-      setRecentIntroductions([]);
+      // 에러 발생 시에도 하드코딩된 자소서는 표시
+      setRecentIntroductions([getHardcodedIntro()]);
     } finally {
       setIsLoadingIntroductions(false);
     }
@@ -370,12 +395,23 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
     }
   ]);
 
-  // 자기소개서 리스트 상태 (백엔드 + 하드코딩 1개)
+  // [시연용] 하드코딩된 자소서 데이터
+  const getHardcodedIntro = () => ({
+    introductionId: 9999,
+    title: "토스 자기소개서",
+    company: "토스",
+    jobApplied: "시스템 소프트웨어 개발자",
+    date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')
+  });
+
+  // 자기소개서 리스트 상태 (백엔드 + 하드코딩 1개) - 초기값에 하드코딩 데이터 포함
   const [recentIntroductions, setRecentIntroductions] = useState<Array<{
     introductionId: number;
     title: string | null;
     date: string;
-  }>>([]);
+    company?: string;
+    jobApplied?: string;
+  }>>([getHardcodedIntro()]);
   const [isLoadingIntroductions, setIsLoadingIntroductions] = useState(false);
 
   const handleEditProfile = () => {
@@ -641,10 +677,14 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">제목</p>
-                <p className="font-medium">토스 자기소개서</p>
+                <p className="text-sm text-muted-foreground">회사</p>
+                <p className="font-medium">토스</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">직무</p>
+                <p className="font-medium">시스템 소프트웨어 개발자</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">작성 날짜</p>
@@ -674,13 +714,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <h4 className="font-medium text-blue-900 mb-2">📝 원본 자기소개서</h4>
               <p className="text-blue-800 whitespace-pre-wrap leading-relaxed">
-                저는 “사용자가 보지 못하는 곳의 안정성을 책임지는 사람”에 매력을 느껴 백엔드 개발자를 목표로 해왔습니다. 컴퓨터공학과 전공 과정에서 자료구조·운영체제·데이터베이스 등 핵심 이론을 학습하며, 눈에 보이는 기능보다 시스템이 견고하게 동작하도록 만드는 설계와 구조에 더 큰 흥미를 느꼈습니다. 특히 서버가 예측 불가한 트래픽이나 오류 상황에서도 안정적으로 서비스를 제공해야 한다는 점에서 백엔드 개발자의 책임감과 판단력이 중요하다는 사실을 실감했고, 이러한 부분은 금융 서비스의 특성상 안정성이 핵심인 토스의 개발 문화와 가장 잘 맞닿아 있다고 느꼈습니다.
-
-                팀 프로젝트에서는 “백엔드는 서비스의 중심축”이라는 생각으로 협업에 적극적으로 참여했습니다. 백엔드 특성상 여러 팀과 의견을 조율해야 하기 때문에 단순히 요청대로 기능을 구현하는 데서 멈추지 않고, 왜 필요한지, 어떤 제약이 있는지, 더 나은 구조는 없는지를 먼저 질문했습니다. 프론트엔드 팀원과 API 스펙을 맞추는 과정에서도 기능 구현보다 먼저 커뮤니케이션 구조와 일정 관리를 정리하여 프로젝트 전체 흐름을 조율했습니다. 이러한 경험은 다양한 직군이 빠르게 협력하며 문제를 해결하는 토스의 수평적 조직 문화와도 자연스럽게 연결된다고 생각합니다.
-
-                저는 백엔드 업무에서 필수적인 꼼꼼함과 데이터 기반 접근을 매우 중요하게 여깁니다. 데이터베이스 설계 시 작은 제약 조건 하나가 성능과 안정성에 큰 차이를 만들고, 일정 관리는 장애 대응 속도와 서비스 신뢰도에 직결되기 때문입니다. 실제로 프로젝트에서 사용자 활동 로그를 분석해 API 응답 속도 저하 구간을 찾아내고, 쿼리 구조를 개선해 평균 응답 속도를 40% 단축했습니다. 이 경험을 통해 “문제를 감으로 해결하지 않고, 데이터로 원인을 추적하는 것”이 백엔드 개발자의 핵심 태도임을 깨달았고, 이는 데이터 기반 의사결정을 중시하는 토스가 추구하는 방향과도 일치합니다.
-
-                백엔드 개발은 단순한 기술 구현을 넘어, 다양한 팀과 함께 사용자가 신뢰할 수 있는 서비스를 만드는 일이라 생각합니다. 저는 앞으로도 기술적 깊이를 넓히고, 변화에 빠르게 대응하며, 팀과 함께 더 나은 결정을 만들어가는 개발자로 성장하고 싶습니다. 그리고 이러한 성장 방향을 가장 잘 실현할 수 있는 곳이 토스의 백엔드 조직이라 확신합니다.
+                {hardcodedOriginalResume}
               </p>
             </div>
           </CardContent>
@@ -691,7 +725,7 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-primary" />
-              AI 분석 결과
+              AI 피드백
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -703,6 +737,24 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
               >
                 <ReactMarkdown>{hardcodedFeedback}</ReactMarkdown>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AI 수정 자기소개서 */}
+        <Card className="border-2 rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-primary" />
+              AI 수정 자기소개서
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <h4 className="font-medium text-green-900 mb-2">✨ AI가 수정해준 자기소개서</h4>
+              <p className="text-green-800 whitespace-pre-wrap leading-relaxed">
+                {hardcodedRevisedResume}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -1047,6 +1099,8 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
               const title = intro.title && intro.title.trim().length > 0
                 ? intro.title
                 : "토스 자기소개서";
+              const company = (intro as any).company || "토스";
+              const jobApplied = (intro as any).jobApplied || "시스템 소프트웨어 개발자";
               const summary = "AI가 분석한 핵심 개선 포인트가 정리된 자기소개서입니다.";
 
               return (
@@ -1057,7 +1111,10 @@ export function LearningProfile({ userId, onProfileComplete, onProfileInfoChange
                 >
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="font-medium text-lg">{title}</p>
+                      <div>
+                        <p className="font-medium text-lg">{company}</p>
+                        <p className="text-muted-foreground">{jobApplied}</p>
+                      </div>
                       <Badge className="bg-blue-100 text-blue-700 border-blue-200 rounded-full px-3 py-1">
                         피드백 완료
                       </Badge>

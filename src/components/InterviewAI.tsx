@@ -7,6 +7,7 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input"; // Input은 다른 곳에서 사용되므로 유지
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
 import { MAJOR_OPTIONS, getJobOptionsByMajor } from "../data/departmentJobData";
+import { generateInterviewQuestions } from "../api";
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -37,7 +38,7 @@ export function InterviewAI() {
   };
 
   const [showResumeUpload, setShowResumeUpload] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const questions = fetchedQuestions;
     
@@ -53,37 +54,34 @@ export function InterviewAI() {
     setError(null);
 
     try {
-      // Flask 백엔드 서버의 API 주소로 요청을 보냅니다.
-      const response = await fetch('http://13.125.192.47:8090/api/feedback/interview/{interviewID}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          major: majorInput,
-          job_title: jobInput,
-          cover_letter: resumeText, 
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "면접 질문 생성에 실패했습니다. 서버를 확인해주세요.");
-        setFetchedQuestions([]);
+      // userId 가져오기
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        setError("로그인이 필요합니다. 먼저 로그인해주세요.");
+        setIsLoading(false);
         return;
       }
-        
+
+      // 올바른 API 함수 사용
+      const data = await generateInterviewQuestions({
+        userId: parseInt(userId),
+        coverLetter: resumeText || undefined
+      });
+
+      // API 응답 형식: { questions: [{ questionId, text }, ...] }
       if (data.questions && data.questions.length > 0) {
-          setFetchedQuestions(data.questions);
-          setCurrentStep('preparation'); // 성공 시 준비 단계로 이동
+        // questions 배열에서 text 속성 추출
+        const questionTexts = data.questions.map((q: any) => q.text || q);
+        setFetchedQuestions(questionTexts);
+        setCurrentStep('preparation'); // 성공 시 준비 단계로 이동
       } else {
-          setError("AI가 질문을 생성하지 못했습니다. 입력 정보를 확인해주세요.");
-          setFetchedQuestions([]);
+        setError("AI가 질문을 생성하지 못했습니다. 입력 정보를 확인해주세요.");
+        setFetchedQuestions([]);
       }
         
-    } catch (e) {
-      setError("서버 연결에 실패했습니다. Flask 서버가 실행 중인지 확인해주세요.");
+    } catch (e: any) {
+      console.error('면접 질문 생성 오류:', e);
+      setError(e.message || "서버 연결에 실패했습니다. 서버가 실행 중인지 확인해주세요.");
       setFetchedQuestions([]);
     } finally {
       setIsLoading(false);
