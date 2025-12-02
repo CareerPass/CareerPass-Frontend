@@ -55,12 +55,22 @@ export const getRoadmapMajor = async (major) => {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'omit',
         });
 
         if (!response.ok) {
             // response.ok가 아닐 경우 콘솔에 status와 message 출력
-            const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
+            let errorJson = {};
+            let errorText = '';
+            try {
+                const text = await response.text();
+                errorText = text;
+                if (text && text.trim().startsWith('{')) {
+                    errorJson = JSON.parse(text);
+                }
+            } catch (e) {
+                // 파싱 실패 시 무시
+            }
             console.error('API 오류:', {
                 status: response.status,
                 statusText: response.statusText,
@@ -110,12 +120,22 @@ export const getRoadmapCert = async (major, job) => {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'omit',
         });
 
         if (!response.ok) {
             // response.ok가 아닐 경우 콘솔에 status와 message 출력
-            const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
+            let errorJson = {};
+            let errorText = '';
+            try {
+                const text = await response.text();
+                errorText = text;
+                if (text && text.trim().startsWith('{')) {
+                    errorJson = JSON.parse(text);
+                }
+            } catch (e) {
+                // 파싱 실패 시 무시
+            }
             console.error('API 오류:', {
                 status: response.status,
                 statusText: response.statusText,
@@ -165,6 +185,7 @@ export const getIntroductions = async (userId) => {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'omit',
         });
 
         if (!response.ok) {

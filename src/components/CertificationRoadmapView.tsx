@@ -61,20 +61,12 @@ export function CertificationRoadmapView({ selectedDepartment, selectedJob }: Ce
         let errorMessage = '자격증 데이터를 불러오는데 실패했습니다.';
         
         if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
-          errorMessage = '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요. (Failed to fetch)';
+          errorMessage = '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
         } else if (err.message?.includes('HTTP error! status: 404')) {
           // 404 에러인 경우 - 해당 전공/직무 조합의 데이터가 없음
-          const errorJson = err.message.match(/\{.*\}/)?.[0];
-          if (errorJson) {
-            try {
-              const parsed = JSON.parse(errorJson);
-              errorMessage = parsed.message || `해당 전공/직무의 자격증 로드맵 데이터가 서버에 없습니다.\n(전공: ${departmentInfo?.name}, 직무: ${selectedJob})`;
-            } catch {
-              errorMessage = `해당 전공/직무의 자격증 로드맵 데이터가 서버에 없습니다.\n(전공: ${departmentInfo?.name}, 직무: ${selectedJob})`;
-            }
-          } else {
-            errorMessage = `해당 전공/직무의 자격증 로드맵 데이터가 서버에 없습니다.\n(전공: ${departmentInfo?.name}, 직무: ${selectedJob})`;
-          }
+          errorMessage = `해당 전공/직무의 자격증 로드맵 데이터가 서버에 없습니다.\n\n전공명: "${departmentInfo?.name}"\n직무명: "${selectedJob}"\n\n백엔드에 이 전공명과 직무명 조합으로 데이터가 등록되어 있는지 확인해주세요.`;
+          // 에러는 표시하지만 빈 배열로 설정하여 UI가 깨지지 않도록 함
+          setCertifications([]);
         } else if (err.message?.includes('HTTP error')) {
           errorMessage = `서버 오류: ${err.message}`;
         } else {
@@ -82,7 +74,10 @@ export function CertificationRoadmapView({ selectedDepartment, selectedJob }: Ce
         }
         
         setError(errorMessage);
-        setCertifications([]);
+        // 404가 아닌 경우에만 빈 배열 설정 (404는 위에서 이미 설정)
+        if (!err.message?.includes('HTTP error! status: 404')) {
+          setCertifications([]);
+        }
       } finally {
         setIsLoading(false);
       }

@@ -89,7 +89,10 @@ export function SubjectRoadmapView({ selectedDepartment }: SubjectRoadmapViewPro
         if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
           errorMessage = '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
         } else if (err.message?.includes('HTTP error! status: 404')) {
-          errorMessage = `해당 전공의 교과목 로드맵 데이터가 서버에 없습니다.\n(전공: ${departmentInfo?.name})`;
+          // 404 에러인 경우 - 데이터가 없거나 전공명이 일치하지 않음
+          errorMessage = `해당 전공의 교과목 로드맵 데이터가 서버에 없습니다.\n\n전공명: "${departmentInfo?.name}"\n\n백엔드에 이 전공명으로 데이터가 등록되어 있는지 확인해주세요.`;
+          // 에러는 표시하지만 빈 데이터로 설정하여 UI가 깨지지 않도록 함
+          setSubjectsData({});
         } else if (err.message?.includes('HTTP error')) {
           errorMessage = `서버 오류: ${err.message}`;
         } else {
@@ -97,7 +100,10 @@ export function SubjectRoadmapView({ selectedDepartment }: SubjectRoadmapViewPro
         }
         
         setError(errorMessage);
-        setSubjectsData({});
+        // 404가 아닌 경우에만 빈 데이터 설정 (404는 위에서 이미 설정)
+        if (!err.message?.includes('HTTP error! status: 404')) {
+          setSubjectsData({});
+        }
       } finally {
         setIsLoading(false);
       }
