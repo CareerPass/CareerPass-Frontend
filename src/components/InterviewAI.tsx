@@ -7,7 +7,7 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input"; // Input은 다른 곳에서 사용되므로 유지
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
 import { MAJOR_OPTIONS, getJobOptionsByMajor } from "../data/departmentJobData";
-import { uploadInterviewAudio, getInterviewAIFeedback, getFeedbackByInterviewId } from "../api";
+import { submitInterviewAnswer, getFeedbackByInterviewId } from "../api";
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -310,38 +310,40 @@ export function InterviewAI() {
           // jobApplied 가져오기 (jobInput 사용)
           const jobApplied = jobInput || '면접';
           
-          // 백엔드로 업로드
-          const uploadResult = await uploadInterviewAudio(finalUserId, jobApplied, audioBlob);
-          console.log('음성 업로드 성공 - 전체 응답:', uploadResult);
-          console.log('음성 업로드 응답 키 목록:', Object.keys(uploadResult || {}));
-          console.log('transcript 필드 확인:', uploadResult?.transcript);
+          // 현재 질문 정보
+          const currentQuestionText = questions[currentQuestion] || '';
+          const currentQuestionId = currentQuestion + 1; // 질문 ID는 1부터 시작
           
-          // 첫 번째 업로드 시 interviewId 저장
-          if (!interviewId && uploadResult?.id) {
-            setInterviewId(uploadResult.id);
+          // resumeContent 가져오기
+          const resumeContent = resumeText || '';
+          
+          // 백엔드로 답변 제출 (meta + file 동시 전송)
+          const result = await submitInterviewAnswer({
+            interviewId: interviewId || null,
+            userId: finalUserId,
+            questionId: currentQuestionId,
+            questionText: currentQuestionText,
+            resumeContent: resumeContent,
+            jobApplied: jobApplied,
+            file: audioBlob,
+          });
+          
+          console.log('면접 답변 제출 성공 - 전체 응답:', result);
+          console.log('응답 키 목록:', Object.keys(result || {}));
+          console.log('transcript 필드 확인:', result?.transcript);
+          
+          // 첫 번째 업로드 시 interviewId 저장 (응답에 id가 있는 경우)
+          if (!interviewId && result?.id) {
+            setInterviewId(result.id);
           }
           
           // 답변 저장 (STT 변환된 텍스트)
-          // answers 배열의 인덱스는 현재 질문 번호와 일치해야 함
           const currentAnswerIndex = currentQuestion;
-          
-          // 백엔드 응답에서 STT 텍스트 추출 (transcript 우선, 여러 가능한 필드명 시도)
-          const answerText = uploadResult?.transcript
-            || uploadResult?.answerText 
-            || uploadResult?.answer_text 
-            || uploadResult?.transcription
-            || uploadResult?.text
-            || uploadResult?.sttResult
-            || uploadResult?.stt_result
-            || uploadResult?.whisperText
-            || uploadResult?.whisper_text
-            || uploadResult?.result?.text
-            || uploadResult?.data?.text
-            || '';
+          const answerText = result?.transcript || '';
           
           console.log('추출된 답변 텍스트:', answerText || '(없음)', '인덱스:', currentAnswerIndex, '길이:', answerText?.length || 0);
           if (!answerText) {
-            console.warn('⚠️ STT 텍스트를 찾을 수 없습니다. 응답 구조:', JSON.stringify(uploadResult, null, 2));
+            console.warn('⚠️ STT 텍스트를 찾을 수 없습니다. 응답 구조:', JSON.stringify(result, null, 2));
           }
           
           // answers 배열 업데이트 (transcript가 있으면 무조건 저장)
@@ -362,8 +364,9 @@ export function InterviewAI() {
           });
         }
       } catch (err: any) {
-        console.error('음성 업로드 실패:', err);
-        setError(`음성 업로드에 실패했습니다: ${err.message}`);
+        console.error('면접 답변 제출 실패:', err);
+        setError(`STT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (${err.message})`);
+        alert('면접 답변 제출에 실패했습니다.\n\nSTT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
       } finally {
         setIsUploading(false);
       }
@@ -414,34 +417,34 @@ export function InterviewAI() {
           // jobApplied 가져오기
           const jobApplied = jobInput || '면접';
           
-          // 마지막 질문 음성 업로드
-          const uploadResult = await uploadInterviewAudio(finalUserId, jobApplied, audioBlob);
-          console.log('마지막 음성 업로드 성공:', uploadResult);
+          // 마지막 질문 정보
+          const lastQuestionIndex = questions.length - 1;
+          const lastQuestionText = questions[lastQuestionIndex] || '';
+          const lastQuestionId = lastQuestionIndex + 1;
+          
+          // resumeContent 가져오기
+          const resumeContent = resumeText || '';
+          
+          // 마지막 질문 답변 제출 (meta + file 동시 전송)
+          const result = await submitInterviewAnswer({
+            interviewId: interviewId || null,
+            userId: finalUserId,
+            questionId: lastQuestionId,
+            questionText: lastQuestionText,
+            resumeContent: resumeContent,
+            jobApplied: jobApplied,
+            file: audioBlob,
+          });
+          
+          console.log('마지막 질문 답변 제출 성공:', result);
           
           // interviewId 저장 (아직 없으면)
-          if (!interviewId && uploadResult?.id) {
-            setInterviewId(uploadResult.id);
+          if (!interviewId && result?.id) {
+            setInterviewId(result.id);
           }
           
           // 마지막 답변 저장 (STT 변환된 텍스트)
-          const lastQuestionIndex = questions.length - 1;
-          
-          console.log('마지막 질문 업로드 응답:', uploadResult);
-          console.log('마지막 질문 transcript 필드:', uploadResult?.transcript);
-          
-          // 백엔드 응답에서 STT 텍스트 추출 (transcript 우선, 여러 가능한 필드명 시도)
-          const answerText = uploadResult?.transcript
-            || uploadResult?.answerText 
-            || uploadResult?.answer_text 
-            || uploadResult?.transcription
-            || uploadResult?.text
-            || uploadResult?.sttResult
-            || uploadResult?.stt_result
-            || uploadResult?.whisperText
-            || uploadResult?.whisper_text
-            || uploadResult?.result?.text
-            || uploadResult?.data?.text
-            || '';
+          const answerText = result?.transcript || '';
           
           console.log('마지막 질문 답변 텍스트:', answerText || '(없음)', '인덱스:', lastQuestionIndex, '길이:', answerText?.length || 0);
           
@@ -460,10 +463,17 @@ export function InterviewAI() {
             console.log('마지막 업데이트된 answers 배열:', newAnswers);
             return newAnswers;
           });
+          
+          // 마지막 답변의 분석 결과를 저장 (전체 분석 결과로 사용)
+          if (result) {
+            setAnalysisResult(result);
+            console.log('마지막 답변 분석 결과 저장:', result);
+          }
         }
       } catch (err: any) {
-        console.error('마지막 음성 업로드 실패:', err);
-        setError(`음성 업로드에 실패했습니다: ${err.message}`);
+        console.error('마지막 면접 답변 제출 실패:', err);
+        setError(`STT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (${err.message})`);
+        alert('마지막 면접 답변 제출에 실패했습니다.\n\nSTT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
       } finally {
         setIsUploading(false);
       }
@@ -494,17 +504,17 @@ export function InterviewAI() {
     setCurrentStep('analysis');
     setAnalysisProgress(0);
     
-    // 면접 종료 후 피드백 데이터 가져오기 (답변 텍스트 포함)
+    // 면접 종료 후 과거 기록 조회 (선택적)
+    // submitInterviewAnswer의 응답으로 실시간 분석 결과를 받았으므로,
+    // 여기서는 과거 기록 목록만 가져옵니다 (필요한 경우)
     if (interviewId) {
-      // 1. 먼저 피드백 API로 질문별 답변 텍스트 가져오기
+      // 과거 기록 조회 (선택적, 실시간 결과가 이미 있으므로 필수는 아님)
       getFeedbackByInterviewId(interviewId)
         .then(feedbackData => {
-          console.log('피드백 데이터:', feedbackData);
-          
-          // feedbackData가 배열인 경우 질문별 답변 추출
+          console.log('과거 피드백 데이터:', feedbackData);
+          // 필요시 answers 배열 보완 (실시간 결과가 없는 경우에만)
           if (Array.isArray(feedbackData) && feedbackData.length > 0) {
             const extractedAnswers = feedbackData.map((item: any) => {
-              // transcript 우선, 여러 가능한 필드명 시도
               const answer = item?.transcript
                 || item?.answerText 
                 || item?.answer_text 
@@ -515,22 +525,17 @@ export function InterviewAI() {
                 || item?.whisperText
                 || item?.whisper_text
                 || '';
-              console.log('피드백 항목:', item, '추출된 답변:', answer);
               return answer;
             });
             
-            console.log('피드백에서 추출한 답변들:', extractedAnswers);
-            
-            // answers 배열 업데이트 (transcript가 있으면 무조건 업데이트)
+            // answers 배열이 비어있거나 일부만 있는 경우에만 보완
             setAnswers(prevAnswers => {
               const newAnswers = [...prevAnswers];
               extractedAnswers.forEach((answer, idx) => {
-                if (answer && answer.trim()) {
-                  // transcript가 있으면 무조건 업데이트 (기존 값이 있어도 덮어쓰기)
+                if (answer && answer.trim() && (!newAnswers[idx] || !newAnswers[idx].trim())) {
                   if (idx < newAnswers.length) {
                     newAnswers[idx] = answer.trim();
                   } else {
-                    // 배열이 부족하면 빈 문자열로 채운 후 추가
                     while (newAnswers.length < idx) {
                       newAnswers.push('');
                     }
@@ -538,54 +543,14 @@ export function InterviewAI() {
                   }
                 }
               });
-              console.log('피드백으로 업데이트된 answers:', newAnswers);
               return newAnswers;
             });
-          } else if (feedbackData && typeof feedbackData === 'object') {
-            // 배열이 아닌 객체인 경우 (단일 객체 또는 다른 구조)
-            console.log('피드백 데이터가 배열이 아닙니다. 구조 확인:', feedbackData);
-            // transcript 필드가 직접 있는 경우
-            if (feedbackData.transcript) {
-              console.log('피드백 데이터에 transcript가 있습니다:', feedbackData.transcript);
-              setAnswers(prevAnswers => {
-                // 전체 transcript를 첫 번째 답변으로 설정하거나, 질문 수만큼 분할
-                const newAnswers = [...prevAnswers];
-                if (newAnswers.length === 0 && questions.length > 0) {
-                  // answers가 비어있으면 transcript를 첫 번째 질문에 설정
-                  newAnswers.push(feedbackData.transcript.trim());
-                }
-                return newAnswers;
-              });
-            }
           }
         })
         .catch(err => {
-          console.error('피드백 데이터 가져오기 실패:', err);
+          console.error('과거 피드백 데이터 가져오기 실패 (선택적):', err);
+          // 실패해도 실시간 결과가 있으므로 문제없음
         });
-      
-      // 2. AI 분석 결과 가져오기 (비동기로 실행하되 결과 화면 전환은 블로킹하지 않음)
-      getInterviewAIFeedback(
-        {
-          interviewId: interviewId,
-          userId: localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId') || '1', 10) : 1
-        },
-        null // file은 null로 전달 (백엔드가 interviewId만으로 분석할 수 있다면)
-      )
-      .then(feedbackResult => {
-        console.log('AI 분석 결과:', feedbackResult);
-        setAnalysisResult(feedbackResult);
-        
-        // analysisResult에 transcript가 있으면 answers 배열 업데이트 시도
-        if (feedbackResult?.transcript) {
-          console.log('AI 분석 결과에 transcript가 있습니다:', feedbackResult.transcript);
-          // transcript가 전체 답변인 경우, 질문별로 분리할 수 없으므로
-          // 전체 transcript를 표시하는 용도로만 사용
-        }
-      })
-      .catch(err => {
-        console.error('AI 분석 결과 가져오기 실패:', err);
-        // 분석 실패해도 결과 화면은 표시됨
-      });
     }
     
     // 분석 진행 시뮬레이션
