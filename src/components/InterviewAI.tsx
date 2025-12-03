@@ -7,6 +7,7 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input"; // Input은 다른 곳에서 사용되므로 유지
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
 import { MAJOR_OPTIONS, getJobOptionsByMajor } from "../data/departmentJobData";
+import { uploadInterviewAudio, getInterviewAIFeedback, getFeedbackByInterviewId } from "../api";
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
 
@@ -38,6 +39,15 @@ export function InterviewAI() {
 
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  
+  // 녹음 관련 refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [interviewId, setInterviewId] = useState<number | null>(null);
+  const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null); // 마이크 권한 상태
+  const [analysisResult, setAnalysisResult] = useState<any>(null); // AI 분석 결과
 
   const questions = fetchedQuestions;
     
@@ -100,7 +110,152 @@ export function InterviewAI() {
   // startInterview 함수를 fetchQuestions로 대체합니다.
   const startInterview = fetchQuestions; 
 
-  const beginInterview = () => {
+  // 녹음 시작 함수
+  const startRecording = async () => {
+    try {
+      // 기존 스트림이 있고 활성 상태면 재사용
+      if (audioStreamRef.current && audioStreamRef.current.active) {
+        const existingTracks = audioStreamRef.current.getAudioTracks();
+        if (existingTracks.length > 0 && existingTracks[0].readyState === 'live') {
+          // 기존 스트림 재사용
+          const mediaRecorder = new MediaRecorder(audioStreamRef.current, {
+            mimeType: 'audio/webm'
+          });
+          
+          audioChunksRef.current = [];
+          
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              audioChunksRef.current.push(event.data);
+            }
+          };
+          
+          mediaRecorderRef.current = mediaRecorder;
+          mediaRecorder.start();
+          setIsRecording(true);
+          setHasMicPermission(true);
+          console.log('기존 스트림으로 녹음 재시작됨');
+          return;
+        }
+      }
+
+      // 새 스트림 요청
+      console.log('🔄 getUserMedia 호출 시작...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          console.log('✅ getUserMedia 성공 - 스트림 획득됨');
+          return stream;
+        })
+        .catch(err => {
+          console.error('❌ getUserMedia 실패:', {
+            name: err.name,
+            message: err.message,
+            error: err
+          });
+          
+          // 에러 타입별 명확한 분리 처리
+          let errorMessage = '';
+          let isPermissionError = false;
+          
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            // 실제 권한 거부 에러인 경우만
+            isPermissionError = true;
+            setHasMicPermission(false);
+            errorMessage = '마이크 권한이 허용되지 않았습니다.\n\n브라우저 주소창 왼쪽 자물쇠(🔒) 아이콘 → 사이트 설정 → 마이크 권한을 "허용"으로 변경한 뒤 페이지를 새로고침해 주세요.';
+            console.log('🔒 권한 거부 에러 감지:', err.name);
+          } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            // 마이크 장치를 찾을 수 없는 경우
+            setHasMicPermission(null); // 권한 문제가 아니라 장치 문제
+            errorMessage = '마이크 장치를 찾을 수 없습니다. 입력 장치를 확인해 주세요.';
+            console.log('🔍 장치 없음 에러 감지:', err.name);
+          } else {
+            // 기타 에러 (권한 문제가 아닐 수 있음)
+            setHasMicPermission(null); // 권한 상태 불명확
+            errorMessage = `마이크를 사용할 수 없는 오류가 발생했습니다. (${err.name}: ${err.message})`;
+            console.log('⚠️ 기타 에러 감지:', err.name, err.message);
+          }
+          
+          // 권한 거부 에러가 아닌 경우에는 권한 관련 메시지를 표시하지 않음
+          if (isPermissionError) {
+            alert(errorMessage);
+            setError(errorMessage);
+          } else {
+            setError(errorMessage);
+            // alert는 권한 에러일 때만 표시
+          }
+          
+          throw err; // 에러를 다시 throw하여 호출부에서 처리할 수 있도록
+        });
+      
+      // getUserMedia가 성공한 경우 - 권한이 확실히 허용된 상태
+      console.log('✅ getUserMedia 성공 - 권한 허용 확인됨');
+      setHasMicPermission(true);
+      setError(null); // 이전 에러 메시지 제거 (성공했으므로)
+      audioStreamRef.current = stream;
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm'
+      });
+      
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      console.log('✅ 녹음 시작됨 - MediaRecorder 상태:', mediaRecorder.state);
+    } catch (err: any) {
+      console.error('❌ 녹음 시작 실패 (catch 블록):', {
+        name: err?.name,
+        message: err?.message,
+        error: err
+      });
+      
+      // catch 블록에 도달했다는 것은 getUserMedia가 실패했다는 의미
+      // 하지만 이미 .catch()에서 권한 상태와 에러 메시지를 설정했으므로
+      // 여기서는 추가로 권한 없음으로 설정하지 않음 (이미 처리됨)
+      setIsRecording(false);
+      
+      // 에러 메시지는 .catch()에서 이미 설정됨
+      // getUserMedia가 성공했다면 이 catch 블록에 도달하지 않음
+    }
+  };
+
+  // 녹음 종료 함수
+  const stopRecording = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      if (!mediaRecorderRef.current || !audioStreamRef.current) {
+        resolve(new Blob());
+        return;
+      }
+
+      const mediaRecorder = mediaRecorderRef.current;
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioChunksRef.current = [];
+        
+        // 스트림은 유지 (권한을 계속 유지하기 위해 트랙을 중지하지 않음)
+        // 다음 질문에서 같은 스트림을 재사용할 수 있도록
+        setIsRecording(false);
+        console.log('녹음 종료됨, Blob 크기:', audioBlob.size);
+        resolve(audioBlob);
+      };
+      
+      if (mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      } else {
+        resolve(new Blob());
+      }
+    });
+  };
+
+  const beginInterview = async () => {
     if (questions.length === 0) {
         setError("질문 목록이 없습니다. 메인 화면으로 돌아가 다시 시작해주세요.");
         setCurrentStep('main');
@@ -110,6 +265,12 @@ export function InterviewAI() {
     setCurrentStep('interview');
     setCurrentQuestion(0);
     setTimeLeft(60);
+    setAnswers([]);
+    setInterviewId(null);
+    setHasMicPermission(null); // 권한 상태 초기화
+    
+    // 녹음 시작
+    await startRecording();
     startTimer();
   };
 
@@ -119,7 +280,7 @@ export function InterviewAI() {
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]); 
+          // 타이머 종료 시 자동으로 다음 질문으로 이동 (답변은 nextQuestion에서 업로드 후 저장됨)
           nextQuestion();
           return 60;
         }
@@ -128,35 +289,306 @@ export function InterviewAI() {
     }, 1000);
   };
 
-  const nextQuestion = () => {
+  const nextQuestion = async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    setIsRecording(false);
     
-    // 답변 저장 (currentQuestion이 questions.length보다 작을 때만)
-    if (currentQuestion < questions.length && answers.length === currentQuestion) {
-        setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
+    // 마이크 권한이 있는 경우에만 녹음 종료 및 업로드
+    if (hasMicPermission === true && mediaRecorderRef.current && audioStreamRef.current) {
+      setIsUploading(true);
+      try {
+        // 녹음 종료
+        const audioBlob = await stopRecording();
+        
+        if (audioBlob.size > 0) {
+          // userId 가져오기
+          const userIdStr = localStorage.getItem('userId');
+          const userId = userIdStr ? parseInt(userIdStr, 10) : 1;
+          const finalUserId = isNaN(userId) ? 1 : userId;
+          
+          // jobApplied 가져오기 (jobInput 사용)
+          const jobApplied = jobInput || '면접';
+          
+          // 백엔드로 업로드
+          const uploadResult = await uploadInterviewAudio(finalUserId, jobApplied, audioBlob);
+          console.log('음성 업로드 성공 - 전체 응답:', uploadResult);
+          console.log('음성 업로드 응답 키 목록:', Object.keys(uploadResult || {}));
+          console.log('transcript 필드 확인:', uploadResult?.transcript);
+          
+          // 첫 번째 업로드 시 interviewId 저장
+          if (!interviewId && uploadResult?.id) {
+            setInterviewId(uploadResult.id);
+          }
+          
+          // 답변 저장 (STT 변환된 텍스트)
+          // answers 배열의 인덱스는 현재 질문 번호와 일치해야 함
+          const currentAnswerIndex = currentQuestion;
+          
+          // 백엔드 응답에서 STT 텍스트 추출 (transcript 우선, 여러 가능한 필드명 시도)
+          const answerText = uploadResult?.transcript
+            || uploadResult?.answerText 
+            || uploadResult?.answer_text 
+            || uploadResult?.transcription
+            || uploadResult?.text
+            || uploadResult?.sttResult
+            || uploadResult?.stt_result
+            || uploadResult?.whisperText
+            || uploadResult?.whisper_text
+            || uploadResult?.result?.text
+            || uploadResult?.data?.text
+            || '';
+          
+          console.log('추출된 답변 텍스트:', answerText || '(없음)', '인덱스:', currentAnswerIndex, '길이:', answerText?.length || 0);
+          if (!answerText) {
+            console.warn('⚠️ STT 텍스트를 찾을 수 없습니다. 응답 구조:', JSON.stringify(uploadResult, null, 2));
+          }
+          
+          // answers 배열 업데이트 (transcript가 있으면 무조건 저장)
+          setAnswers(prevAnswers => {
+            const newAnswers = [...prevAnswers];
+            // 배열이 부족하면 빈 문자열로 채움
+            while (newAnswers.length < currentAnswerIndex) {
+              newAnswers.push('');
+            }
+            // 현재 질문 인덱스에 답변 저장 (기존 값이 있어도 덮어쓰기)
+            if (newAnswers.length === currentAnswerIndex) {
+              newAnswers.push(answerText.trim());
+            } else {
+              newAnswers[currentAnswerIndex] = answerText.trim();
+            }
+            console.log('업데이트된 answers 배열:', newAnswers, '현재 인덱스:', currentAnswerIndex);
+            return newAnswers;
+          });
+        }
+      } catch (err: any) {
+        console.error('음성 업로드 실패:', err);
+        setError(`음성 업로드에 실패했습니다: ${err.message}`);
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      // 권한이 없거나 녹음이 시작되지 않은 경우
+      if (hasMicPermission === false) {
+        // 실제 권한 거부인 경우만 경고
+        console.warn('⚠️ 마이크 권한이 거부되어 녹음 데이터를 업로드할 수 없습니다.');
+      } else {
+        // 권한 상태가 불명확하거나 녹음이 시작되지 않은 경우
+        console.warn('⚠️ 녹음 데이터가 없어 업로드할 수 없습니다. (권한 상태:', hasMicPermission, ')');
+      }
+      // 빈 답변 저장 (분석 결과에서 구분하기 위해)
+      if (currentQuestion < questions.length && answers.length === currentQuestion) {
+        setAnswers(prevAnswers => [...prevAnswers, '']);
+      }
     }
 
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setTimeLeft(60);
-      // 다음 질문까지 2초 대기
-      setTimeout(() => startTimer(), 2000); 
+      // 다음 질문까지 2초 대기 후 녹음 시작 (권한이 있으면)
+      setTimeout(async () => {
+        if (hasMicPermission !== false) {
+          await startRecording();
+        }
+        startTimer();
+      }, 2000); 
     } else {
-      finishInterview();
+      await finishInterview();
     }
   };
 
-  const finishInterview = () => {
-    // 마지막 질문의 답변을 확실히 저장
-    if (currentQuestion === questions.length - 1 && answers.length < questions.length) {
-        setAnswers(prevAnswers => [...prevAnswers, `(답변 녹음 내용)`]);
+  const finishInterview = async () => {
+    // 마이크 권한이 있고 녹음이 진행된 경우에만 업로드
+    if (hasMicPermission === true && mediaRecorderRef.current && audioStreamRef.current) {
+      setIsUploading(true);
+      try {
+        // 녹음 종료
+        const audioBlob = await stopRecording();
+        
+        if (audioBlob.size > 0) {
+          // userId 가져오기
+          const userIdStr = localStorage.getItem('userId');
+          const userId = userIdStr ? parseInt(userIdStr, 10) : 1;
+          const finalUserId = isNaN(userId) ? 1 : userId;
+          
+          // jobApplied 가져오기
+          const jobApplied = jobInput || '면접';
+          
+          // 마지막 질문 음성 업로드
+          const uploadResult = await uploadInterviewAudio(finalUserId, jobApplied, audioBlob);
+          console.log('마지막 음성 업로드 성공:', uploadResult);
+          
+          // interviewId 저장 (아직 없으면)
+          if (!interviewId && uploadResult?.id) {
+            setInterviewId(uploadResult.id);
+          }
+          
+          // 마지막 답변 저장 (STT 변환된 텍스트)
+          const lastQuestionIndex = questions.length - 1;
+          
+          console.log('마지막 질문 업로드 응답:', uploadResult);
+          console.log('마지막 질문 transcript 필드:', uploadResult?.transcript);
+          
+          // 백엔드 응답에서 STT 텍스트 추출 (transcript 우선, 여러 가능한 필드명 시도)
+          const answerText = uploadResult?.transcript
+            || uploadResult?.answerText 
+            || uploadResult?.answer_text 
+            || uploadResult?.transcription
+            || uploadResult?.text
+            || uploadResult?.sttResult
+            || uploadResult?.stt_result
+            || uploadResult?.whisperText
+            || uploadResult?.whisper_text
+            || uploadResult?.result?.text
+            || uploadResult?.data?.text
+            || '';
+          
+          console.log('마지막 질문 답변 텍스트:', answerText || '(없음)', '인덱스:', lastQuestionIndex, '길이:', answerText?.length || 0);
+          
+          setAnswers(prevAnswers => {
+            const newAnswers = [...prevAnswers];
+            // 배열이 부족하면 빈 문자열로 채움
+            while (newAnswers.length < lastQuestionIndex) {
+              newAnswers.push('');
+            }
+            // 마지막 답변 추가 또는 업데이트 (transcript가 있으면 무조건 저장)
+            if (newAnswers.length === lastQuestionIndex) {
+              newAnswers.push(answerText.trim());
+            } else {
+              newAnswers[lastQuestionIndex] = answerText.trim();
+            }
+            console.log('마지막 업데이트된 answers 배열:', newAnswers);
+            return newAnswers;
+          });
+        }
+      } catch (err: any) {
+        console.error('마지막 음성 업로드 실패:', err);
+        setError(`음성 업로드에 실패했습니다: ${err.message}`);
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      // 권한이 없거나 녹음이 시작되지 않은 경우
+      if (hasMicPermission === false) {
+        // 실제 권한 거부인 경우만 경고
+        console.warn('⚠️ 마이크 권한이 거부되어 마지막 녹음 데이터를 업로드할 수 없습니다.');
+        alert('녹음 데이터가 없어 분석을 제공할 수 없습니다.\n\n마이크 권한을 허용한 후 다시 시도해주세요.');
+      } else {
+        // 권한 상태가 불명확하거나 녹음이 시작되지 않은 경우
+        console.warn('⚠️ 녹음 데이터가 없어 마지막 업로드를 할 수 없습니다. (권한 상태:', hasMicPermission, ')');
+        alert('녹음 데이터가 없어 분석을 제공할 수 없습니다.');
+      }
+      // 빈 답변 저장
+      if (currentQuestion === questions.length - 1 && answers.length < questions.length) {
+        setAnswers(prevAnswers => [...prevAnswers, '']);
+      }
     }
 
+    // 면접 종료 시에만 스트림 정리 (권한은 유지)
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(track => track.stop());
+      audioStreamRef.current = null;
+    }
+
+    // 분석 화면으로 전환
     setCurrentStep('analysis');
     setAnalysisProgress(0);
+    
+    // 면접 종료 후 피드백 데이터 가져오기 (답변 텍스트 포함)
+    if (interviewId) {
+      // 1. 먼저 피드백 API로 질문별 답변 텍스트 가져오기
+      getFeedbackByInterviewId(interviewId)
+        .then(feedbackData => {
+          console.log('피드백 데이터:', feedbackData);
+          
+          // feedbackData가 배열인 경우 질문별 답변 추출
+          if (Array.isArray(feedbackData) && feedbackData.length > 0) {
+            const extractedAnswers = feedbackData.map((item: any) => {
+              // transcript 우선, 여러 가능한 필드명 시도
+              const answer = item?.transcript
+                || item?.answerText 
+                || item?.answer_text 
+                || item?.transcription
+                || item?.text
+                || item?.sttResult
+                || item?.stt_result
+                || item?.whisperText
+                || item?.whisper_text
+                || '';
+              console.log('피드백 항목:', item, '추출된 답변:', answer);
+              return answer;
+            });
+            
+            console.log('피드백에서 추출한 답변들:', extractedAnswers);
+            
+            // answers 배열 업데이트 (transcript가 있으면 무조건 업데이트)
+            setAnswers(prevAnswers => {
+              const newAnswers = [...prevAnswers];
+              extractedAnswers.forEach((answer, idx) => {
+                if (answer && answer.trim()) {
+                  // transcript가 있으면 무조건 업데이트 (기존 값이 있어도 덮어쓰기)
+                  if (idx < newAnswers.length) {
+                    newAnswers[idx] = answer.trim();
+                  } else {
+                    // 배열이 부족하면 빈 문자열로 채운 후 추가
+                    while (newAnswers.length < idx) {
+                      newAnswers.push('');
+                    }
+                    newAnswers.push(answer.trim());
+                  }
+                }
+              });
+              console.log('피드백으로 업데이트된 answers:', newAnswers);
+              return newAnswers;
+            });
+          } else if (feedbackData && typeof feedbackData === 'object') {
+            // 배열이 아닌 객체인 경우 (단일 객체 또는 다른 구조)
+            console.log('피드백 데이터가 배열이 아닙니다. 구조 확인:', feedbackData);
+            // transcript 필드가 직접 있는 경우
+            if (feedbackData.transcript) {
+              console.log('피드백 데이터에 transcript가 있습니다:', feedbackData.transcript);
+              setAnswers(prevAnswers => {
+                // 전체 transcript를 첫 번째 답변으로 설정하거나, 질문 수만큼 분할
+                const newAnswers = [...prevAnswers];
+                if (newAnswers.length === 0 && questions.length > 0) {
+                  // answers가 비어있으면 transcript를 첫 번째 질문에 설정
+                  newAnswers.push(feedbackData.transcript.trim());
+                }
+                return newAnswers;
+              });
+            }
+          }
+        })
+        .catch(err => {
+          console.error('피드백 데이터 가져오기 실패:', err);
+        });
+      
+      // 2. AI 분석 결과 가져오기 (비동기로 실행하되 결과 화면 전환은 블로킹하지 않음)
+      getInterviewAIFeedback(
+        {
+          interviewId: interviewId,
+          userId: localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId') || '1', 10) : 1
+        },
+        null // file은 null로 전달 (백엔드가 interviewId만으로 분석할 수 있다면)
+      )
+      .then(feedbackResult => {
+        console.log('AI 분석 결과:', feedbackResult);
+        setAnalysisResult(feedbackResult);
+        
+        // analysisResult에 transcript가 있으면 answers 배열 업데이트 시도
+        if (feedbackResult?.transcript) {
+          console.log('AI 분석 결과에 transcript가 있습니다:', feedbackResult.transcript);
+          // transcript가 전체 답변인 경우, 질문별로 분리할 수 없으므로
+          // 전체 transcript를 표시하는 용도로만 사용
+        }
+      })
+      .catch(err => {
+        console.error('AI 분석 결과 가져오기 실패:', err);
+        // 분석 실패해도 결과 화면은 표시됨
+      });
+    }
+    
+    // 분석 진행 시뮬레이션
     const progressInterval = setInterval(() => {
       setAnalysisProgress(prev => {
         if (prev >= 100) {
@@ -169,7 +601,18 @@ export function InterviewAI() {
     }, 100);
   };
 
-  const resetInterview = () => {
+  const resetInterview = async () => {
+    // 녹음 중이면 종료
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      await stopRecording();
+    }
+    
+    // 스트림 정리
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(track => track.stop());
+      audioStreamRef.current = null;
+    }
+    
     setCurrentStep('main');
     setCurrentQuestion(0);
     setIsRecording(false);
@@ -178,16 +621,26 @@ export function InterviewAI() {
     setFetchedQuestions([]); 
     setAnalysisProgress(0);
     setError(null);
+    setIsUploading(false);
+    setInterviewId(null);
+    setHasMicPermission(null); // 권한 상태 초기화
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
   };
     
-  // 컴포넌트 언마운트 시 타이머 정리
+  // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      // 녹음 정리
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, []);
@@ -273,6 +726,23 @@ export function InterviewAI() {
 
         <Card className="border-2 rounded-xl p-8">
           <CardContent className="space-y-8">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                <span className="text-red-600">⚠️</span>
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
+            {hasMicPermission === false && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+                <span className="text-yellow-600 text-xl">⚠️</span>
+                <div className="flex-1">
+                  <p className="font-medium text-yellow-900 mb-1">마이크 권한이 허용되지 않아 답변 녹음이 진행되지 않습니다.</p>
+                  <p className="text-yellow-800 text-sm">
+                    브라우저 주소창 왼쪽 자물쇠(🔒) 아이콘 → 사이트 설정 → 마이크 권한을 "허용"으로 변경한 뒤 페이지를 새로고침해 주세요.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="text-center space-y-6">
               <div className="relative">
                 <div className={`w-32 h-32 rounded-full mx-auto flex items-center justify-center 
@@ -310,11 +780,33 @@ export function InterviewAI() {
             </div>
 
             <div className="flex justify-center space-x-4">
-              <Button variant="outline" onClick={nextQuestion}>
-                다음 질문
+              <Button 
+                variant="outline" 
+                onClick={nextQuestion}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    업로드 중...
+                  </>
+                ) : (
+                  '다음 질문'
+                )}
               </Button>
-              <Button variant="destructive" onClick={finishInterview}> 
-                면접 종료 
+              <Button 
+                variant="destructive" 
+                onClick={finishInterview}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    업로드 중...
+                  </>
+                ) : (
+                  '면접 종료'
+                )}
               </Button>
             </div>
           </CardContent>
@@ -483,7 +975,16 @@ export function InterviewAI() {
                 </div>
                 <p className="text-muted-foreground">{question}</p>
                 <div className="bg-muted/50 p-3 rounded border-l-4 border-muted-foreground/20">
-                  <p className="text-muted-foreground italic">답변 내용: {answers[index] || "답변 내용이 없습니다."}</p>
+                  <p className="text-muted-foreground">
+                    {answers[index] && answers[index].trim() ? (
+                      <span className="italic">답변 내용: {answers[index]}</span>
+                    ) : analysisResult?.transcript ? (
+                      // answers가 비어있지만 transcript가 있는 경우 (전체 답변)
+                      <span className="italic text-blue-600">전체 답변: {analysisResult.transcript}</span>
+                    ) : (
+                      <span className="text-muted-foreground/70">답변 내용이 없습니다. (STT 변환 중이거나 오류가 발생했을 수 있습니다)</span>
+                    )}
+                  </p>
                 </div>
               </div>
             ))}
@@ -502,65 +1003,108 @@ export function InterviewAI() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-primary/10 rounded-full mt-1">
-                  <MessageCircle className="w-4 h-4 text-primary" />
+            {/* 전체 점수 및 통계 */}
+            {analysisResult && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">종합 점수</p>
+                  <p className="text-2xl font-bold text-primary">{analysisResult.score || 0}점</p>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-primary font-medium">📋 전체적인 평가</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    전반적으로 면접에 임하는 자세가 좋고, 기술적 지식도 충분히 갖추고 계신 것 같습니다.
-                    특히 자신의 경험을 구체적인 사례로 설명하는 부분이 인상적이었습니다.
-                  </p>
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">유창성</p>
+                  <p className="text-2xl font-bold text-green-600">{analysisResult.fluency || 0}점</p>
+                </div>
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">내용 깊이</p>
+                  <p className="text-2xl font-bold text-blue-600">{analysisResult.contentDepth || 0}점</p>
+                </div>
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">구조</p>
+                  <p className="text-2xl font-bold text-purple-600">{analysisResult.structure || 0}점</p>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-green-100 rounded-full mt-1">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-green-700 font-medium">💪 주요 강점</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    문제 해결 과정을 체계적으로 설명하는 능력과 팀워크에 대한 이해도가 뛰어납니다.
-                    또한 질문의 의도를 정확히 파악하고 적절한 답변을 제시했습니다.
-                  </p>
+            {/* 전체 전사본 (transcript) */}
+            {analysisResult?.transcript && (
+              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-primary/10 rounded-full mt-1">
+                    <FileText className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <p className="text-primary font-medium">📝 전체 답변 전사본</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {analysisResult.transcript}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-100 rounded-full mt-1">
-                  <Target className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-blue-700 font-medium">🎯 개선 포인트</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    답변 시간을 조금 더 여유있게 활용하시고, 회사에 대한 사전 조사 내용을 더 구체적으로  
-                    언급하면 지원 의지를 더 강하게 어필할 수 있을 것 같습니다.
-                  </p>
+            {/* 주요 강점 */}
+            {analysisResult?.strengths && analysisResult.strengths.length > 0 && (
+              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-green-100 rounded-full mt-1">
+                    <TrendingUp className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <p className="text-green-700 font-medium">💪 주요 강점</p>
+                    <ul className="text-gray-700 leading-relaxed space-y-1">
+                      {analysisResult.strengths.map((strength: string, idx: number) => (
+                        <li key={idx}>• {strength}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-purple-100 rounded-full mt-1">
-                  <Star className="w-4 h-4 text-purple-600" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-purple-700 font-medium">🚀 앞으로의 방향</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    현재 수준에서 실제 면접에 충분히 대응할 수 있을 것으로 보입니다.
-                    다양한 상황별 질문에 대한 연습을 더 해보시면 자신감도 더욱 향상될 것입니다.
-                  </p>
+            {/* 개선 사항 */}
+            {analysisResult?.improvements && analysisResult.improvements.length > 0 && (
+              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-100 rounded-full mt-1">
+                    <Target className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <p className="text-blue-700 font-medium">🎯 개선 포인트</p>
+                    <ul className="text-gray-700 leading-relaxed space-y-1">
+                      {analysisResult.improvements.map((improvement: string, idx: number) => (
+                        <li key={idx}>• {improvement}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* 위험 요소 */}
+            {analysisResult?.risks && analysisResult.risks.length > 0 && (
+              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-yellow-100 rounded-full mt-1">
+                    <MessageCircle className="w-4 h-4 text-yellow-600" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <p className="text-yellow-700 font-medium">⚠️ 주의 사항</p>
+                    <ul className="text-gray-700 leading-relaxed space-y-1">
+                      {analysisResult.risks.map((risk: string, idx: number) => (
+                        <li key={idx}>• {risk}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 분석 결과가 없을 때 */}
+            {!analysisResult && (
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-center">
+                <p className="text-yellow-800">AI 분석 결과를 불러오는 중입니다...</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

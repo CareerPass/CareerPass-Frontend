@@ -1,5 +1,7 @@
 export interface IntroFeedbackResponse {
-  originalResume: string;
+  userId?: number;
   feedback: string;
-  regenResume: string;
+  original_resume: string;
+  regen_resume: string;
+  regen_toss_resume: string;
 }

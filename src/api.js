@@ -786,7 +786,7 @@ export const generateInterviewQuestions = async ({ userId, coverLetter }) => {
 // 면접 컨트롤러 API
 // POST: http://13.125.192.47:8090/api/interview/audio - 면접 오디오 업로드
 // 요청 파라미터: userId (query, integer), jobApplied (query, string)
-// 요청 바디(JSON): { file: string }
+// 요청 바디: multipart/form-data (file: File/Blob)
 // 응답: 면접 객체 (id, fileUrl, status, jobApplied, userId, requestTime, finishTime)
 export const uploadInterviewAudio = async (userId, jobApplied, file) => {
     try {
@@ -803,19 +803,24 @@ export const uploadInterviewAudio = async (userId, jobApplied, file) => {
             ? `http://13.125.192.47:8090/api/interview/audio?${queryString}`
             : 'http://13.125.192.47:8090/api/interview/audio';
 
+        // FormData 생성 (multipart/form-data)
+        const formData = new FormData();
+        formData.append('file', file, `answer-${Date.now()}.webm`);
+
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                file: file
-            }),
+            // multipart/form-data는 브라우저가 자동으로 Content-Type을 설정하므로 헤더에 명시하지 않음
+            body: formData,
         });
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
+            let errorJson = {};
+            try {
+                errorJson = JSON.parse(errorText);
+            } catch {
+                // JSON 파싱 실패 시 errorText 그대로 사용
+            }
             console.error('API 오류:', {
                 status: response.status,
                 statusText: response.statusText,
@@ -1079,6 +1084,80 @@ export const getFeedbackByIntroductionId = async (introductionId) => {
             stack: error.stack,
             error: error,
             introductionId: introductionId
+        });
+        throw error;
+    }
+};
+
+// POST: http://13.125.192.47:8090/api/feedback/interview/ai - 면접 AI 피드백 분석
+// 요청 파라미터: 없음
+// 요청 바디: multipart/form-data (meta: object, file: string)
+// 응답: 분석 결과 객체 (score, timeMs, fluency, contentDepth, structure, fillerCount, improvements, strengths, risks)
+export const getInterviewAIFeedback = async (meta, file) => {
+    try {
+        const formData = new FormData();
+        
+        // meta를 JSON 문자열로 변환하여 Blob으로 추가
+        // Spring의 @RequestPart는 Content-Type을 확인하므로 명시적으로 설정
+        if (meta) {
+            const metaJson = JSON.stringify(meta);
+            const metaBlob = new Blob([metaJson], { type: 'application/json' });
+            formData.append('meta', metaBlob);
+        }
+        
+        // file 추가
+        // 백엔드 스펙에 "file (string)"이라고 되어 있지만, 
+        // multipart/form-data에서는 실제 파일 객체나 Blob을 보내야 할 수 있음
+        if (file) {
+            if (typeof file === 'string') {
+                // 문자열인 경우 (파일 경로나 URL일 수 있음)
+                // 문자열을 Blob으로 변환
+                const fileBlob = new Blob([file], { type: 'text/plain' });
+                formData.append('file', fileBlob);
+            } else if (file instanceof Blob || file instanceof File) {
+                // Blob 또는 File 객체인 경우
+                formData.append('file', file);
+            } else {
+                // 기타 경우 문자열로 변환 후 Blob으로
+                const fileBlob = new Blob([String(file)], { type: 'text/plain' });
+                formData.append('file', fileBlob);
+            }
+        }
+
+        const response = await fetch('http://13.125.192.47:8090/api/feedback/interview/ai', {
+            method: 'POST',
+            // FormData를 사용하면 브라우저가 자동으로 multipart/form-data와 boundary를 설정
+            // Content-Type 헤더를 명시적으로 설정하지 않음 (브라우저가 자동 설정)
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            let errorJson = {};
+            try {
+                errorJson = JSON.parse(errorText);
+            } catch {
+                // JSON 파싱 실패 시 errorText 그대로 사용
+            }
+            console.error('API 오류:', {
+                status: response.status,
+                statusText: response.statusText,
+                message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
+                errorData: errorJson
+            });
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('POST /api/feedback/interview/ai 응답:', data);
+        return data;
+    } catch (error) {
+        console.error('getInterviewAIFeedback 오류 상세:', {
+            message: error.message,
+            stack: error.stack,
+            error: error,
+            meta: meta,
+            file: file
         });
         throw error;
     }

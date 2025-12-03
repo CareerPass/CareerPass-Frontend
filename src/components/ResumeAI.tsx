@@ -76,57 +76,29 @@ export function ResumeAI() {
       console.log('ResumeAI API 응답 전체:', result);
       const responseKeys = Object.keys(result || {});
       console.log('응답 키 목록:', responseKeys);
-      console.log('각 키의 값:', responseKeys.reduce((acc, key) => {
-        acc[key] = typeof result[key] === 'string' 
-          ? (result[key].substring(0, 100) + (result[key].length > 100 ? '...' : ''))
-          : result[key];
-        return acc;
-      }, {} as any));
       
       // 응답 검증 및 상태 저장
       if (result && result.feedback) {
-        // 백엔드 응답 구조에 맞게 필드 매핑 (모든 가능한 필드명 시도)
+        // 백엔드 응답 구조에 맞게 필드 매핑
+        // IntroFeedbackResponse: { userId, feedback, original_resume, regen_resume, regen_toss_resume }
         const mappedResult: IntroFeedbackResponse = {
-          originalResume: result.originalResume 
-            || result.original_resume
-            || result.originalResumeContent
-            || result.resumeContent 
-            || result.resume_content
-            || result.original 
-            || result.coverLetter
-            || result.cover_letter
-            || resumeContent, // 백엔드에서 없으면 사용자 입력값 사용
+          userId: result.userId || undefined,
           feedback: result.feedback || '',
-          regenResume: result.regenResume 
-            || result.regen_resume
-            || result.revisedResume 
-            || result.revised_resume
-            || result.revised 
-            || result.revisedResumeContent
-            || result.revised_resume_content
-            || result.improvedResume
-            || result.improved_resume
-            || result.enhancedResume
-            || result.enhanced_resume
-            || result.updatedResume
-            || result.updated_resume
-            || result.modifiedResume
-            || result.modified_resume
-            || result.regeneratedResume
-            || result.regenerated_resume
-            || result.newResume
-            || result.new_resume
-            || ''
+          original_resume: result.original_resume || result.originalResume || resumeContent || '',
+          regen_resume: result.regen_resume || result.regenResume || '',
+          regen_toss_resume: result.regen_toss_resume || result.regenTossResume || ''
         };
         
         console.log('매핑된 결과:', {
-          originalResume: mappedResult.originalResume ? '있음 (' + mappedResult.originalResume.substring(0, 50) + '...)' : '없음',
+          userId: mappedResult.userId || '없음',
           feedback: mappedResult.feedback ? '있음' : '없음',
-          regenResume: mappedResult.regenResume ? '있음 (' + mappedResult.regenResume.substring(0, 50) + '...)' : '없음'
+          original_resume: mappedResult.original_resume ? '있음 (' + mappedResult.original_resume.substring(0, 50) + '...)' : '없음',
+          regen_resume: mappedResult.regen_resume ? '있음 (' + mappedResult.regen_resume.substring(0, 50) + '...)' : '없음',
+          regen_toss_resume: mappedResult.regen_toss_resume ? '있음 (' + mappedResult.regen_toss_resume.substring(0, 50) + '...)' : '없음'
         });
         
         // 수정된 자기소개서가 없으면 경고
-        if (!mappedResult.regenResume || !mappedResult.regenResume.trim()) {
+        if (!mappedResult.regen_resume || !mappedResult.regen_resume.trim()) {
           console.warn('수정된 자기소개서 필드를 찾을 수 없습니다. 응답의 모든 키:', responseKeys);
           console.warn('응답 전체 내용:', JSON.stringify(result, null, 2));
         }
@@ -407,8 +379,8 @@ export function ResumeAI() {
                     className="text-gray-800 whitespace-pre-wrap break-words"
                     style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                   >
-                    {aiResult.originalResume && aiResult.originalResume.trim() ? (
-                      <ReactMarkdown>{aiResult.originalResume}</ReactMarkdown>
+                    {aiResult.original_resume && aiResult.original_resume.trim() ? (
+                      <ReactMarkdown>{aiResult.original_resume}</ReactMarkdown>
                     ) : (
                       <p className="text-gray-500 italic">원본 자기소개서 내용이 없습니다.</p>
                     )}
@@ -430,19 +402,19 @@ export function ResumeAI() {
                   </div>
                 </section>
 
-                {/* AI 수정 자기소개서 */}
+                {/* 개선된 자기소개서 버전 */}
                 <section className="border rounded-lg p-4 bg-white shadow-sm">
-                  <h2 className="text-lg font-semibold mb-2">✨ AI 수정 자기소개서</h2>
+                  <h2 className="text-lg font-semibold mb-2">✨ 개선된 자기소개서 버전</h2>
                   <div 
                     className="text-gray-800 whitespace-pre-wrap break-words"
                     style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                   >
-                    {aiResult.regenResume && aiResult.regenResume.trim() ? (
-                      <ReactMarkdown>{aiResult.regenResume}</ReactMarkdown>
+                    {aiResult.regen_resume && aiResult.regen_resume.trim() ? (
+                      <ReactMarkdown>{aiResult.regen_resume}</ReactMarkdown>
                     ) : (
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                         <p className="text-yellow-800 text-sm">
-                          수정된 자기소개서가 제공되지 않았습니다. 
+                          개선된 자기소개서가 제공되지 않았습니다. 
                           <br />
                           콘솔을 확인하여 API 응답 구조를 확인해주세요.
                         </p>
@@ -450,6 +422,19 @@ export function ResumeAI() {
                     )}
                   </div>
                 </section>
+
+                {/* 토스 인재상 버전 자기소개서 */}
+                {aiResult.regen_toss_resume && aiResult.regen_toss_resume.trim() && (
+                  <section className="border rounded-lg p-4 bg-white shadow-sm">
+                    <h2 className="text-lg font-semibold mb-2">🎯 토스 인재상 버전 자기소개서</h2>
+                    <div 
+                      className="text-gray-800 whitespace-pre-wrap break-words"
+                      style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                    >
+                      <ReactMarkdown>{aiResult.regen_toss_resume}</ReactMarkdown>
+                    </div>
+                  </section>
+                )}
               </div>
             ) : (
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
