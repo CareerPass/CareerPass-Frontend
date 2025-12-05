@@ -5,19 +5,35 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 // 기본 fetch 래퍼 함수
 const fetchApi = async (endpoint, options = {}) => {
     try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            ...options,
-            headers: {
+        // body가 FormData인 경우 Content-Type 헤더를 설정하지 않음
+        // (브라우저가 자동으로 multipart/form-data + boundary를 설정)
+        const isFormData = options.body instanceof FormData;
+        
+        const headers = isFormData 
+            ? { ...options.headers } // FormData일 때는 Content-Type을 추가하지 않음
+            : {
                 'Content-Type': 'application/json',
                 ...options.headers,
-            },
+            };
+
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers: headers,
         });
 
         // 4xx, 5xx 에러 처리
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
+            // 에러 응답도 Content-Type에 따라 처리
+            const contentType = response.headers.get("content-type");
+            let errorData = {};
+            if (contentType && contentType.includes("application/json")) {
+                errorData = await response.json().catch(() => ({}));
+            } else {
+                const errorText = await response.text().catch(() => '');
+                errorData = { error: errorText || `HTTP error! status: ${response.status}` };
+            }
             // 사용자 정의 에러 객체를 throw
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
         }
 
         // 응답 본문이 없을 경우 처리 (e.g. 204 No Content)
@@ -805,61 +821,103 @@ export const generateInterviewQuestions = async ({ userId, coverLetter }) => {
 };
 
 // 면접 컨트롤러 API
-// POST: http://13.125.192.47:8090/api/interview/audio - 면접 오디오 업로드
-// 요청 파라미터: userId (query, integer), jobApplied (query, string)
-// 요청 바디(JSON): { file: string }
-// 응답: 면접 객체 (id, fileUrl, status, jobApplied, userId, requestTime, finishTime)
-export const uploadInterviewAudio = async (userId, jobApplied, file) => {
+// POST: http://13.125.192.47:8090/api/feedback/interview/ai - 면접 답변 제출 및 AI 분석
+// 요청 바디: multipart/form-data (meta: JSON Blob, file: File/Blob)
+// 응답: AnswerAnalysisResultDto (transcript, score, timeMs, fluency, contentDepth, structure, fillerCount, improvements, strengths, risks)
+// 
+// 이 함수는 meta + file을 동시에 전송하는 단일 엔드포인트입니다.
+// meta 구조: { interviewId: number | null, userId: number, questionId: number, questionText: string, resumeContent: string, jobApplied: string }
+export async function submitInterviewAnswer(meta, file) {
     try {
-        // query 파라미터 구성
-        const params = new URLSearchParams();
-        if (userId !== undefined && userId !== null) {
-            params.append('userId', userId.toString());
+        // 필수 파라미터 검증
+        if (!file) {
+            throw new Error('면접 음성 파일(file)이 없습니다.');
         }
-        if (jobApplied !== undefined && jobApplied !== null) {
-            params.append('jobApplied', jobApplied.toString());
+        if (!meta || typeof meta !== 'object') {
+            throw new Error('meta 객체가 필요합니다.');
         }
-        const queryString = params.toString();
-        const url = queryString 
-            ? `http://13.125.192.47:8090/api/interview/audio?${queryString}`
-            : 'http://13.125.192.47:8090/api/interview/audio';
 
-        const response = await fetch(url, {
+        // FormData 생성
+        const formData = new FormData();
+        
+        // meta를 JSON 문자열로 변환하여 Blob으로 추가 (content-type: application/json)
+        const metaJson = JSON.stringify(meta);
+        const metaBlob = new Blob([metaJson], { type: 'application/json' });
+        formData.append('meta', metaBlob);
+
+        // file 추가 (파일 이름이 있으면 사용, 없으면 자동 생성)
+        formData.append('file', file, file.name ?? `answer-${Date.now()}.webm`);
+
+        // 디버깅: 요청 전 로그
+        console.log('[SEND] submitInterviewAnswer 요청:', {
+            meta: meta,
+            fileSize: file.size,
+            fileName: file.name ?? `answer-${Date.now()}.webm`,
+            fileType: file.type || 'audio/webm'
+        });
+
+        const response = await fetch('http://13.125.192.47:8090/api/feedback/interview/ai', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                file: file
-            }),
+            // FormData를 사용하면 브라우저가 자동으로 multipart/form-data와 boundary를 설정
+            // Content-Type 헤더를 명시적으로 설정하지 않음 (415 에러 방지)
+            body: formData,
         });
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
-            const errorJson = await response.json().catch(() => ({}));
-            console.error('API 오류:', {
+            let errorJson = {};
+            try {
+                errorJson = JSON.parse(errorText);
+            } catch {
+                // JSON 파싱 실패 시 errorText 그대로 사용
+            }
+            console.error('[ERROR] Interview AI API 오류:', {
                 status: response.status,
                 statusText: response.statusText,
                 message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
                 errorData: errorJson
             });
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
+            throw new Error(`Interview AI API 오류: HTTP ${response.status} ${errorJson.message || errorJson.error || errorText}`);
         }
 
+        // 응답은 JSON으로 반환 (AnswerAnalysisResultDto)
         const data = await response.json();
-        console.log('POST /api/interview/audio 응답:', data);
+        
+        // 디버깅: 응답 후 로그
+        console.log('[RECV] submitInterviewAnswer 응답:', {
+            transcript: data?.transcript || '(없음)',
+            score: data?.score,
+            timeMs: data?.timeMs,
+            fluency: data?.fluency,
+            contentDepth: data?.contentDepth,
+            structure: data?.structure,
+            fillerCount: data?.fillerCount,
+            improvements: data?.improvements?.length || 0,
+            strengths: data?.strengths?.length || 0,
+            risks: data?.risks?.length || 0,
+            fullResponse: data
+        });
+        
         return data;
     } catch (error) {
-        console.error('uploadInterviewAudio 오류 상세:', {
+        console.error('[ERROR] submitInterviewAnswer 오류 상세:', {
             message: error.message,
             stack: error.stack,
             error: error,
-            userId: userId,
-            jobApplied: jobApplied,
+            meta: meta,
             file: file
         });
         throw error;
     }
+}
+
+// [DEPRECATED] 이 함수는 더 이상 사용하지 않습니다. submitInterviewAnswer를 사용하세요.
+// POST: http://13.125.192.47:8090/api/interview/audio - 면접 오디오 업로드 (구버전)
+// 이 함수는 호환성을 위해 유지되지만, 새로운 코드에서는 submitInterviewAnswer를 사용해야 합니다.
+export const uploadInterviewAudio = async (userId, jobApplied, file) => {
+    console.warn('⚠️ uploadInterviewAudio는 더 이상 사용하지 않습니다. submitInterviewAnswer를 사용하세요.');
+    // 호환성을 위해 빈 객체 반환 (실제로는 사용하지 않음)
+    return {};
 };
 
 // GET: http://13.125.192.47:8090/api/interview/{interviewId} - 면접 조회
@@ -1071,6 +1129,16 @@ export async function getFeedbackByIntroductionId(id) {
   return res.json();
 }
 
+// [DEPRECATED] 이 함수는 더 이상 사용하지 않습니다. submitInterviewAnswer를 사용하세요.
+// POST: http://13.125.192.47:8090/api/feedback/interview/ai - 면접 AI 피드백 분석 (구버전)
+// 이 함수는 meta만 보내거나 file만 보내는 방식으로 사용되었지만,
+// 백엔드 스펙상 meta + file을 동시에 보내야 하므로 submitInterviewAnswer로 대체되었습니다.
+export const getInterviewAIFeedback = async (meta, file) => {
+    console.warn('⚠️ getInterviewAIFeedback는 더 이상 사용하지 않습니다. submitInterviewAnswer를 사용하세요.');
+    // 호환성을 위해 빈 객체 반환 (실제로는 사용하지 않음)
+    return {};
+};
+
 // GET: http://13.125.192.47:8090/api/feedback/interview/{interviewId} - 면접별 피드백 조회
 // 요청 파라미터: interviewId (path, integer)
 // 요청 바디: 없음
@@ -1258,7 +1326,7 @@ fetch('http://13.125.192.47:8090/api/interview/question-gen', {
     }),
 });
 
-fetch('http://13.125.192.47:8090/api/interview/audio', {
+fetch('http://13.125.192.47:8090/api/feedback/interview/ai', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json'
@@ -1349,8 +1417,21 @@ export const createIntroductionAIFeedback = async (userId, resumeContent) => {
             throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.message || errorJson.error || errorText}`);
         }
 
-        // 정상인 경우 JSON 데이터 console.log
-        const data = await response.json();
+        // 응답 Content-Type에 따라 처리
+        const contentType = response.headers.get("content-type");
+        let data;
+        if (contentType && contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            // 텍스트 응답이 JSON 형식인지 확인
+            try {
+                data = JSON.parse(text);
+            } catch {
+                // JSON이 아니면 텍스트 그대로 반환
+                data = text;
+            }
+        }
         console.log('POST /api/feedback/introduction/ai 응답:', data);
         return data;
     } catch (error) {
