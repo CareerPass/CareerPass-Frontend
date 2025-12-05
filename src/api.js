@@ -805,54 +805,40 @@ export const generateInterviewQuestions = async ({ userId, coverLetter }) => {
 // 응답: AnswerAnalysisResultDto (transcript, score, timeMs, fluency, contentDepth, structure, fillerCount, improvements, strengths, risks)
 // 
 // 이 함수는 meta + file을 동시에 전송하는 단일 엔드포인트입니다.
-// meta 구조: { interviewId, userId, questionId, questionText, resumeContent, jobApplied }
-export const submitInterviewAnswer = async ({
-    interviewId,
-    userId,
-    questionId,
-    questionText,
-    resumeContent,
-    jobApplied,
-    file, // Blob 또는 File
-}) => {
+// meta 구조: { interviewId: number | null, userId: number, questionId: number, questionText: string, resumeContent: string, jobApplied: string }
+export async function submitInterviewAnswer(meta, file) {
     try {
         // 필수 파라미터 검증
         if (!file) {
             throw new Error('면접 음성 파일(file)이 없습니다.');
         }
-
-        // meta 객체 구성
-        const meta = {
-            interviewId: interviewId || null,
-            userId: userId || null,
-            questionId: questionId || null,
-            questionText: questionText || '',
-            resumeContent: resumeContent || '',
-            jobApplied: jobApplied || '',
-        };
+        if (!meta || typeof meta !== 'object') {
+            throw new Error('meta 객체가 필요합니다.');
+        }
 
         // FormData 생성
         const formData = new FormData();
         
-        // meta를 JSON 문자열로 변환하여 Blob으로 추가
+        // meta를 JSON 문자열로 변환하여 Blob으로 추가 (content-type: application/json)
         const metaJson = JSON.stringify(meta);
         const metaBlob = new Blob([metaJson], { type: 'application/json' });
         formData.append('meta', metaBlob);
 
-        // file 추가
-        formData.append('file', file, `answer-${Date.now()}.webm`);
+        // file 추가 (파일 이름이 있으면 사용, 없으면 자동 생성)
+        formData.append('file', file, file.name ?? `answer-${Date.now()}.webm`);
 
-        console.log('submitInterviewAnswer 요청:', {
+        // 디버깅: 요청 전 로그
+        console.log('[SEND] submitInterviewAnswer 요청:', {
             meta: meta,
             fileSize: file.size,
-            fileName: file.name || 'audio.webm'
+            fileName: file.name ?? `answer-${Date.now()}.webm`,
+            fileType: file.type || 'audio/webm'
         });
 
         const response = await fetch('http://13.125.192.47:8090/api/feedback/interview/ai', {
             method: 'POST',
             // FormData를 사용하면 브라우저가 자동으로 multipart/form-data와 boundary를 설정
             // Content-Type 헤더를 명시적으로 설정하지 않음 (415 에러 방지)
-            // headers에 Content-Type을 포함하지 않음
             body: formData,
         });
 
@@ -864,7 +850,7 @@ export const submitInterviewAnswer = async ({
             } catch {
                 // JSON 파싱 실패 시 errorText 그대로 사용
             }
-            console.error('Interview AI API 오류:', {
+            console.error('[ERROR] Interview AI API 오류:', {
                 status: response.status,
                 statusText: response.statusText,
                 message: errorJson.message || errorJson.error || errorText || '알 수 없는 오류',
@@ -873,36 +859,36 @@ export const submitInterviewAnswer = async ({
             throw new Error(`Interview AI API 오류: HTTP ${response.status} ${errorJson.message || errorJson.error || errorText}`);
         }
 
-        // 응답 Content-Type에 따라 처리
-        const contentType = response.headers.get("content-type");
-        let data;
-        if (contentType && contentType.includes("application/json")) {
-            data = await response.json();
-        } else {
-            const text = await response.text();
-            // 텍스트 응답이 JSON 형식인지 확인
-            try {
-                data = JSON.parse(text);
-            } catch {
-                // JSON이 아니면 텍스트 그대로 반환
-                data = text;
-            }
-        }
-        console.log('POST /api/feedback/interview/ai 응답:', data);
+        // 응답은 JSON으로 반환 (AnswerAnalysisResultDto)
+        const data = await response.json();
+        
+        // 디버깅: 응답 후 로그
+        console.log('[RECV] submitInterviewAnswer 응답:', {
+            transcript: data?.transcript || '(없음)',
+            score: data?.score,
+            timeMs: data?.timeMs,
+            fluency: data?.fluency,
+            contentDepth: data?.contentDepth,
+            structure: data?.structure,
+            fillerCount: data?.fillerCount,
+            improvements: data?.improvements?.length || 0,
+            strengths: data?.strengths?.length || 0,
+            risks: data?.risks?.length || 0,
+            fullResponse: data
+        });
+        
         return data;
     } catch (error) {
-        console.error('submitInterviewAnswer 오류 상세:', {
+        console.error('[ERROR] submitInterviewAnswer 오류 상세:', {
             message: error.message,
             stack: error.stack,
             error: error,
-            interviewId: interviewId,
-            userId: userId,
-            questionId: questionId,
+            meta: meta,
             file: file
         });
         throw error;
     }
-};
+}
 
 // [DEPRECATED] 이 함수는 더 이상 사용하지 않습니다. submitInterviewAnswer를 사용하세요.
 // POST: http://13.125.192.47:8090/api/interview/audio - 면접 오디오 업로드 (구버전)

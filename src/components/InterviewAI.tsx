@@ -7,9 +7,23 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input"; // Input은 다른 곳에서 사용되므로 유지
 import { Mic, Brain, Play, Settings, Check, Clock, Star, TrendingUp, MessageCircle, BarChart3, Target, FileText, Loader } from "lucide-react"; 
 import { MAJOR_OPTIONS, getJobOptionsByMajor } from "../data/departmentJobData";
-import { submitInterviewAnswer, getFeedbackByInterviewId } from "../api";
+import { submitInterviewAnswer } from "../api";
 
 type InterviewStep = 'main' | 'preparation' | 'interview' | 'analysis' | 'result';
+
+// AnswerResult 타입 정의
+type AnswerResult = {
+  transcript: string;
+  score: number;
+  timeMs: number;
+  fluency: number;
+  contentDepth: number;
+  structure: number;
+  fillerCount: number;
+  improvements: string[];
+  strengths: string[];
+  risks: string[];
+};
 
 export function InterviewAI() {
   const [currentStep, setCurrentStep] = useState<InterviewStep>('main');
@@ -17,6 +31,7 @@ export function InterviewAI() {
   const [isRecording, setIsRecording] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
   const [answers, setAnswers] = useState<string[]>([]);
+  const [answerResults, setAnswerResults] = useState<AnswerResult[]>([]); // AI 분석 결과 배열
   const [analysisProgress, setAnalysisProgress] = useState(0);
     
   // --- 상태 변수 ---
@@ -317,24 +332,49 @@ export function InterviewAI() {
           // resumeContent 가져오기
           const resumeContent = resumeText || '';
           
-          // 백엔드로 답변 제출 (meta + file 동시 전송)
-          const result = await submitInterviewAnswer({
-            interviewId: interviewId || null,
+          // meta 객체 구성 (백엔드 스펙에 맞게)
+          const meta = {
+            interviewId: interviewId ?? null,
             userId: finalUserId,
             questionId: currentQuestionId,
             questionText: currentQuestionText,
             resumeContent: resumeContent,
             jobApplied: jobApplied,
-            file: audioBlob,
+          };
+          
+          // 디버깅: 요청 전 로그
+          console.log('[SEND] nextQuestion - 면접 답변 제출:', {
+            meta: meta,
+            fileSize: audioBlob.size,
+            fileType: audioBlob.type || 'audio/webm',
+            questionIndex: currentQuestion
           });
           
-          console.log('면접 답변 제출 성공 - 전체 응답:', result);
-          console.log('응답 키 목록:', Object.keys(result || {}));
-          console.log('transcript 필드 확인:', result?.transcript);
+          // 백엔드로 답변 제출 (meta + file 동시 전송)
+          const response = await submitInterviewAnswer(meta, audioBlob);
+          
+          // 응답에서 result 추출: fullResponse가 있으면 그것을, 없으면 response 자체를 사용
+          const result = response?.fullResponse || response;
+          
+          // 디버깅: 응답 후 로그
+          console.log('[RECV] nextQuestion - 면접 답변 제출 성공:', {
+            transcript: result?.transcript || '(없음)',
+            score: result?.score,
+            timeMs: result?.timeMs,
+            fluency: result?.fluency,
+            contentDepth: result?.contentDepth,
+            structure: result?.structure,
+            fillerCount: result?.fillerCount,
+            improvements: result?.improvements?.length || 0,
+            strengths: result?.strengths?.length || 0,
+            risks: result?.risks?.length || 0,
+            fullResponse: response?.fullResponse,
+            rawResponse: response
+          });
           
           // 첫 번째 업로드 시 interviewId 저장 (응답에 id가 있는 경우)
-          if (!interviewId && result?.id) {
-            setInterviewId(result.id);
+          if (!interviewId && response?.id) {
+            setInterviewId(response.id);
           }
           
           // 답변 저장 (STT 변환된 텍스트)
@@ -343,10 +383,24 @@ export function InterviewAI() {
           
           console.log('추출된 답변 텍스트:', answerText || '(없음)', '인덱스:', currentAnswerIndex, '길이:', answerText?.length || 0);
           if (!answerText) {
-            console.warn('⚠️ STT 텍스트를 찾을 수 없습니다. 응답 구조:', JSON.stringify(result, null, 2));
+            console.warn('⚠️ STT 텍스트를 찾을 수 없습니다. 응답 구조:', JSON.stringify(response, null, 2));
           }
           
-          // answers 배열 업데이트 (transcript가 있으면 무조건 저장)
+          // AnswerResult 객체 생성
+          const answerResult: AnswerResult = {
+            transcript: result?.transcript || '',
+            score: result?.score ?? 0,
+            timeMs: result?.timeMs ?? 0,
+            fluency: result?.fluency ?? 0,
+            contentDepth: result?.contentDepth ?? 0,
+            structure: result?.structure ?? 0,
+            fillerCount: result?.fillerCount ?? 0,
+            improvements: Array.isArray(result?.improvements) ? result.improvements : [],
+            strengths: Array.isArray(result?.strengths) ? result.strengths : [],
+            risks: Array.isArray(result?.risks) ? result.risks : []
+          };
+          
+          // answers와 answerResults 배열 동시 업데이트
           setAnswers(prevAnswers => {
             const newAnswers = [...prevAnswers];
             // 배열이 부족하면 빈 문자열로 채움
@@ -362,11 +416,47 @@ export function InterviewAI() {
             console.log('업데이트된 answers 배열:', newAnswers, '현재 인덱스:', currentAnswerIndex);
             return newAnswers;
           });
+          
+          setAnswerResults(prevResults => {
+            const newResults = [...prevResults];
+            // 배열이 부족하면 빈 객체로 채움
+            while (newResults.length < currentAnswerIndex) {
+              newResults.push({
+                transcript: '',
+                score: 0,
+                timeMs: 0,
+                fluency: 0,
+                contentDepth: 0,
+                structure: 0,
+                fillerCount: 0,
+                improvements: [],
+                strengths: [],
+                risks: []
+              });
+            }
+            // 현재 질문 인덱스에 분석 결과 저장
+            if (newResults.length === currentAnswerIndex) {
+              newResults.push(answerResult);
+            } else {
+              newResults[currentAnswerIndex] = answerResult;
+            }
+            console.log('업데이트된 answerResults 배열:', newResults, '현재 인덱스:', currentAnswerIndex);
+            return newResults;
+          });
         }
       } catch (err: any) {
         console.error('면접 답변 제출 실패:', err);
-        setError(`STT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (${err.message})`);
-        alert('면접 답변 제출에 실패했습니다.\n\nSTT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+        // 에러 메시지에서 불필요한 상세 정보 제거
+        const errorMessage = err.message || '알 수 없는 오류';
+        const shortMessage = errorMessage.includes('Data too long') 
+          ? '서버 저장 공간 부족으로 일부 데이터가 저장되지 않았습니다. 면접은 계속 진행됩니다.'
+          : errorMessage.includes('HTTP 500') 
+          ? '서버 오류가 발생했습니다. 면접은 계속 진행됩니다.'
+          : errorMessage;
+        
+        setError(`STT 또는 AI 분석 중 오류가 발생했습니다: ${shortMessage}`);
+        // 에러가 발생해도 다음 질문으로 넘어갈 수 있도록 alert는 제거하거나 간단하게
+        console.warn('⚠️ 면접 답변 제출 실패했지만 면접은 계속 진행됩니다.');
       } finally {
         setIsUploading(false);
       }
@@ -425,22 +515,49 @@ export function InterviewAI() {
           // resumeContent 가져오기
           const resumeContent = resumeText || '';
           
-          // 마지막 질문 답변 제출 (meta + file 동시 전송)
-          const result = await submitInterviewAnswer({
-            interviewId: interviewId || null,
+          // meta 객체 구성 (백엔드 스펙에 맞게)
+          const meta = {
+            interviewId: interviewId ?? null,
             userId: finalUserId,
             questionId: lastQuestionId,
             questionText: lastQuestionText,
             resumeContent: resumeContent,
             jobApplied: jobApplied,
-            file: audioBlob,
+          };
+          
+          // 디버깅: 요청 전 로그
+          console.log('[SEND] finishInterview - 마지막 질문 답변 제출:', {
+            meta: meta,
+            fileSize: audioBlob.size,
+            fileType: audioBlob.type || 'audio/webm',
+            questionIndex: lastQuestionIndex
           });
           
-          console.log('마지막 질문 답변 제출 성공:', result);
+          // 마지막 질문 답변 제출 (meta + file 동시 전송)
+          const response = await submitInterviewAnswer(meta, audioBlob);
+          
+          // 응답에서 result 추출: fullResponse가 있으면 그것을, 없으면 response 자체를 사용
+          const result = response?.fullResponse || response;
+          
+          // 디버깅: 응답 후 로그
+          console.log('[RECV] finishInterview - 마지막 질문 답변 제출 성공:', {
+            transcript: result?.transcript || '(없음)',
+            score: result?.score,
+            timeMs: result?.timeMs,
+            fluency: result?.fluency,
+            contentDepth: result?.contentDepth,
+            structure: result?.structure,
+            fillerCount: result?.fillerCount,
+            improvements: result?.improvements?.length || 0,
+            strengths: result?.strengths?.length || 0,
+            risks: result?.risks?.length || 0,
+            fullResponse: response?.fullResponse,
+            rawResponse: response
+          });
           
           // interviewId 저장 (아직 없으면)
-          if (!interviewId && result?.id) {
-            setInterviewId(result.id);
+          if (!interviewId && response?.id) {
+            setInterviewId(response.id);
           }
           
           // 마지막 답변 저장 (STT 변환된 텍스트)
@@ -448,13 +565,28 @@ export function InterviewAI() {
           
           console.log('마지막 질문 답변 텍스트:', answerText || '(없음)', '인덱스:', lastQuestionIndex, '길이:', answerText?.length || 0);
           
+          // AnswerResult 객체 생성
+          const answerResult: AnswerResult = {
+            transcript: result?.transcript || '',
+            score: result?.score ?? 0,
+            timeMs: result?.timeMs ?? 0,
+            fluency: result?.fluency ?? 0,
+            contentDepth: result?.contentDepth ?? 0,
+            structure: result?.structure ?? 0,
+            fillerCount: result?.fillerCount ?? 0,
+            improvements: Array.isArray(result?.improvements) ? result.improvements : [],
+            strengths: Array.isArray(result?.strengths) ? result.strengths : [],
+            risks: Array.isArray(result?.risks) ? result.risks : []
+          };
+          
+          // answers와 answerResults 배열 동시 업데이트
           setAnswers(prevAnswers => {
             const newAnswers = [...prevAnswers];
             // 배열이 부족하면 빈 문자열로 채움
             while (newAnswers.length < lastQuestionIndex) {
               newAnswers.push('');
             }
-            // 마지막 답변 추가 또는 업데이트 (transcript가 있으면 무조건 저장)
+            // 마지막 답변 추가 또는 업데이트
             if (newAnswers.length === lastQuestionIndex) {
               newAnswers.push(answerText.trim());
             } else {
@@ -464,16 +596,50 @@ export function InterviewAI() {
             return newAnswers;
           });
           
-          // 마지막 답변의 분석 결과를 저장 (전체 분석 결과로 사용)
-          if (result) {
-            setAnalysisResult(result);
-            console.log('마지막 답변 분석 결과 저장:', result);
-          }
+          setAnswerResults(prevResults => {
+            const newResults = [...prevResults];
+            // 배열이 부족하면 빈 객체로 채움
+            while (newResults.length < lastQuestionIndex) {
+              newResults.push({
+                transcript: '',
+                score: 0,
+                timeMs: 0,
+                fluency: 0,
+                contentDepth: 0,
+                structure: 0,
+                fillerCount: 0,
+                improvements: [],
+                strengths: [],
+                risks: []
+              });
+            }
+            // 마지막 답변 분석 결과 저장
+            if (newResults.length === lastQuestionIndex) {
+              newResults.push(answerResult);
+            } else {
+              newResults[lastQuestionIndex] = answerResult;
+            }
+            console.log('마지막 업데이트된 answerResults 배열:', newResults);
+            return newResults;
+          });
+          
+          // 마지막 답변의 분석 결과를 전체 분석 결과로도 저장 (기존 호환성 유지)
+          setAnalysisResult(answerResult);
+          console.log('[SAVE] 마지막 답변 분석 결과 저장:', answerResult);
         }
       } catch (err: any) {
         console.error('마지막 면접 답변 제출 실패:', err);
-        setError(`STT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (${err.message})`);
-        alert('마지막 면접 답변 제출에 실패했습니다.\n\nSTT 또는 AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+        // 에러 메시지에서 불필요한 상세 정보 제거
+        const errorMessage = err.message || '알 수 없는 오류';
+        const shortMessage = errorMessage.includes('Data too long') 
+          ? '서버 저장 공간 부족으로 일부 데이터가 저장되지 않았습니다.'
+          : errorMessage.includes('HTTP 500') 
+          ? '서버 오류가 발생했습니다.'
+          : errorMessage;
+        
+        setError(`STT 또는 AI 분석 중 오류가 발생했습니다: ${shortMessage}`);
+        // 에러가 발생해도 분석 화면으로 넘어갈 수 있도록 alert는 제거
+        console.warn('⚠️ 마지막 면접 답변 제출 실패했지만 분석 화면으로 이동합니다.');
       } finally {
         setIsUploading(false);
       }
@@ -504,54 +670,9 @@ export function InterviewAI() {
     setCurrentStep('analysis');
     setAnalysisProgress(0);
     
-    // 면접 종료 후 과거 기록 조회 (선택적)
-    // submitInterviewAnswer의 응답으로 실시간 분석 결과를 받았으므로,
-    // 여기서는 과거 기록 목록만 가져옵니다 (필요한 경우)
-    if (interviewId) {
-      // 과거 기록 조회 (선택적, 실시간 결과가 이미 있으므로 필수는 아님)
-      getFeedbackByInterviewId(interviewId)
-        .then(feedbackData => {
-          console.log('과거 피드백 데이터:', feedbackData);
-          // 필요시 answers 배열 보완 (실시간 결과가 없는 경우에만)
-          if (Array.isArray(feedbackData) && feedbackData.length > 0) {
-            const extractedAnswers = feedbackData.map((item: any) => {
-              const answer = item?.transcript
-                || item?.answerText 
-                || item?.answer_text 
-                || item?.transcription
-                || item?.text
-                || item?.sttResult
-                || item?.stt_result
-                || item?.whisperText
-                || item?.whisper_text
-                || '';
-              return answer;
-            });
-            
-            // answers 배열이 비어있거나 일부만 있는 경우에만 보완
-            setAnswers(prevAnswers => {
-              const newAnswers = [...prevAnswers];
-              extractedAnswers.forEach((answer, idx) => {
-                if (answer && answer.trim() && (!newAnswers[idx] || !newAnswers[idx].trim())) {
-                  if (idx < newAnswers.length) {
-                    newAnswers[idx] = answer.trim();
-                  } else {
-                    while (newAnswers.length < idx) {
-                      newAnswers.push('');
-                    }
-                    newAnswers.push(answer.trim());
-                  }
-                }
-              });
-              return newAnswers;
-            });
-          }
-        })
-        .catch(err => {
-          console.error('과거 피드백 데이터 가져오기 실패 (선택적):', err);
-          // 실패해도 실시간 결과가 있으므로 문제없음
-        });
-    }
+    // getInterviewAIFeedback 같은 API는 더 이상 호출하지 않음
+    // answerResults 배열에 이미 모든 분석 결과가 저장되어 있음
+    console.log('[FINISH] 면접 종료 - answerResults 배열:', answerResults);
     
     // 분석 진행 시뮬레이션
     const progressInterval = setInterval(() => {
@@ -929,30 +1050,96 @@ export function InterviewAI() {
             <CardDescription>각 질문에 대한 답변 분석 결과입니다</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {questions.map((question, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">질문 {index + 1}</h4>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>답변 시간: {Math.floor(Math.random() * 30) + 30}초</span>
-                    <span className="font-medium text-primary">{Math.floor(Math.random() * 20) + 80}점</span>
+            {questions.map((question, index) => {
+              const result = answerResults[index];
+              return (
+                <div key={index} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">질문 {index + 1}</h4>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span>답변 시간: {result?.timeMs ? `${Math.floor(result.timeMs / 1000)}초` : 'N/A'}</span>
+                      <span className="font-medium text-primary">{result?.score ?? 0}점</span>
+                    </div>
                   </div>
+                  <p className="text-muted-foreground">{question}</p>
+                  
+                  {/* 답변 내용 (transcript) */}
+                  <div className="bg-muted/50 p-3 rounded border-l-4 border-muted-foreground/20">
+                    <p className="text-muted-foreground">
+                      {result?.transcript && result.transcript.trim() ? (
+                        <span className="italic">답변 내용: {result.transcript}</span>
+                      ) : answers[index] && answers[index].trim() ? (
+                        <span className="italic">답변 내용: {answers[index]}</span>
+                      ) : (
+                        <span className="text-muted-foreground/70">답변 내용이 없습니다. (STT 변환 중이거나 오류가 발생했을 수 있습니다)</span>
+                      )}
+                    </p>
+                  </div>
+                  
+                  {/* 점수 정보 */}
+                  {result && (result.score !== undefined || result.fluency !== undefined || result.contentDepth !== undefined || result.structure !== undefined) && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                      {result.fluency !== undefined && (
+                        <div className="bg-green-50 p-2 rounded">
+                          <p className="text-green-700 font-medium">유창성: {result.fluency}점</p>
+                        </div>
+                      )}
+                      {result.contentDepth !== undefined && (
+                        <div className="bg-blue-50 p-2 rounded">
+                          <p className="text-blue-700 font-medium">내용 깊이: {result.contentDepth}점</p>
+                        </div>
+                      )}
+                      {result.structure !== undefined && (
+                        <div className="bg-purple-50 p-2 rounded">
+                          <p className="text-purple-700 font-medium">구조: {result.structure}점</p>
+                        </div>
+                      )}
+                      {result.fillerCount !== undefined && (
+                        <div className="bg-yellow-50 p-2 rounded">
+                          <p className="text-yellow-700 font-medium">끼어들기: {result.fillerCount}회</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* 주요 강점 */}
+                  {result?.strengths && result.strengths.length > 0 && (
+                    <div className="bg-green-50 p-3 rounded border border-green-200">
+                      <p className="text-green-700 font-medium mb-2">💪 주요 강점</p>
+                      <ul className="text-gray-700 space-y-1">
+                        {result.strengths.map((strength: string, idx: number) => (
+                          <li key={idx}>• {strength}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {/* 개선 사항 */}
+                  {result?.improvements && result.improvements.length > 0 && (
+                    <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                      <p className="text-blue-700 font-medium mb-2">🎯 개선 포인트</p>
+                      <ul className="text-gray-700 space-y-1">
+                        {result.improvements.map((improvement: string, idx: number) => (
+                          <li key={idx}>• {improvement}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {/* 위험 요소 */}
+                  {result?.risks && result.risks.length > 0 && (
+                    <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                      <p className="text-yellow-700 font-medium mb-2">⚠️ 주의 사항</p>
+                      <ul className="text-gray-700 space-y-1">
+                        {result.risks.map((risk: string, idx: number) => (
+                          <li key={idx}>• {risk}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-                <p className="text-muted-foreground">{question}</p>
-                <div className="bg-muted/50 p-3 rounded border-l-4 border-muted-foreground/20">
-                  <p className="text-muted-foreground">
-                    {answers[index] && answers[index].trim() ? (
-                      <span className="italic">답변 내용: {answers[index]}</span>
-                    ) : analysisResult?.transcript ? (
-                      // answers가 비어있지만 transcript가 있는 경우 (전체 답변)
-                      <span className="italic text-blue-600">전체 답변: {analysisResult.transcript}</span>
-                    ) : (
-                      <span className="text-muted-foreground/70">답변 내용이 없습니다. (STT 변환 중이거나 오류가 발생했을 수 있습니다)</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -968,106 +1155,146 @@ export function InterviewAI() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 전체 점수 및 통계 */}
-            {analysisResult && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
-                  <p className="text-sm text-muted-foreground mb-1">종합 점수</p>
-                  <p className="text-2xl font-bold text-primary">{analysisResult.score || 0}점</p>
+            {/* 전체 점수 및 통계 - answerResults의 평균 또는 마지막 결과 사용 */}
+            {(() => {
+              // answerResults에서 평균 점수 계산 또는 마지막 결과 사용
+              const lastResult = answerResults.length > 0 ? answerResults[answerResults.length - 1] : null;
+              const avgResult = answerResults.length > 0 ? {
+                score: Math.round(answerResults.reduce((sum, r) => sum + (r.score || 0), 0) / answerResults.length),
+                fluency: Math.round(answerResults.reduce((sum, r) => sum + (r.fluency || 0), 0) / answerResults.length),
+                contentDepth: Math.round(answerResults.reduce((sum, r) => sum + (r.contentDepth || 0), 0) / answerResults.length),
+                structure: Math.round(answerResults.reduce((sum, r) => sum + (r.structure || 0), 0) / answerResults.length),
+              } : null;
+              
+              const displayResult = lastResult || analysisResult || avgResult;
+              
+              return displayResult && (displayResult.score !== undefined || displayResult.fluency !== undefined || displayResult.contentDepth !== undefined || displayResult.structure !== undefined) ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                    <p className="text-sm text-muted-foreground mb-1">종합 점수</p>
+                    <p className="text-2xl font-bold text-primary">{displayResult.score ?? 0}점</p>
+                  </div>
+                  <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                    <p className="text-sm text-muted-foreground mb-1">유창성</p>
+                    <p className="text-2xl font-bold text-green-600">{displayResult.fluency ?? 0}점</p>
+                  </div>
+                  <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                    <p className="text-sm text-muted-foreground mb-1">내용 깊이</p>
+                    <p className="text-2xl font-bold text-blue-600">{displayResult.contentDepth ?? 0}점</p>
+                  </div>
+                  <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
+                    <p className="text-sm text-muted-foreground mb-1">구조</p>
+                    <p className="text-2xl font-bold text-purple-600">{displayResult.structure ?? 0}점</p>
+                  </div>
                 </div>
-                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
-                  <p className="text-sm text-muted-foreground mb-1">유창성</p>
-                  <p className="text-2xl font-bold text-green-600">{analysisResult.fluency || 0}점</p>
-                </div>
-                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
-                  <p className="text-sm text-muted-foreground mb-1">내용 깊이</p>
-                  <p className="text-2xl font-bold text-blue-600">{analysisResult.contentDepth || 0}점</p>
-                </div>
-                <div className="bg-white/70 p-4 rounded-lg border border-primary/20 text-center">
-                  <p className="text-sm text-muted-foreground mb-1">구조</p>
-                  <p className="text-2xl font-bold text-purple-600">{analysisResult.structure || 0}점</p>
-                </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
-            {/* 전체 전사본 (transcript) */}
-            {analysisResult?.transcript && (
-              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-primary/10 rounded-full mt-1">
-                    <FileText className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="space-y-2 flex-1">
-                    <p className="text-primary font-medium">📝 전체 답변 전사본</p>
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                      {analysisResult.transcript}
-                    </p>
+            {/* 전체 전사본 (transcript) - answerResults의 모든 transcript 합치기 */}
+            {(() => {
+              const allTranscripts = answerResults
+                .map(r => r?.transcript)
+                .filter(t => t && t.trim())
+                .join('\n\n');
+              
+              return allTranscripts || analysisResult?.transcript ? (
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-full mt-1">
+                      <FileText className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <p className="text-primary font-medium">📝 전체 답변 전사본</p>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                        {allTranscripts || analysisResult?.transcript || ''}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
-            {/* 주요 강점 */}
-            {analysisResult?.strengths && analysisResult.strengths.length > 0 && (
-              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-green-100 rounded-full mt-1">
-                    <TrendingUp className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div className="space-y-2 flex-1">
-                    <p className="text-green-700 font-medium">💪 주요 강점</p>
-                    <ul className="text-gray-700 leading-relaxed space-y-1">
-                      {analysisResult.strengths.map((strength: string, idx: number) => (
-                        <li key={idx}>• {strength}</li>
-                      ))}
-                    </ul>
+            {/* 주요 강점 - answerResults의 모든 strengths 합치기 */}
+            {(() => {
+              const allStrengths = answerResults
+                .flatMap(r => r?.strengths || [])
+                .filter((s, idx, arr) => arr.indexOf(s) === idx); // 중복 제거
+              
+              return allStrengths.length > 0 || (analysisResult?.strengths && analysisResult.strengths.length > 0) ? (
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-green-100 rounded-full mt-1">
+                      <TrendingUp className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <p className="text-green-700 font-medium">💪 주요 강점</p>
+                      <ul className="text-gray-700 leading-relaxed space-y-1">
+                        {(allStrengths.length > 0 ? allStrengths : analysisResult?.strengths || []).map((strength: string, idx: number) => (
+                          <li key={idx}>• {strength}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
-            {/* 개선 사항 */}
-            {analysisResult?.improvements && analysisResult.improvements.length > 0 && (
-              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-100 rounded-full mt-1">
-                    <Target className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="space-y-2 flex-1">
-                    <p className="text-blue-700 font-medium">🎯 개선 포인트</p>
-                    <ul className="text-gray-700 leading-relaxed space-y-1">
-                      {analysisResult.improvements.map((improvement: string, idx: number) => (
-                        <li key={idx}>• {improvement}</li>
-                      ))}
-                    </ul>
+            {/* 개선 사항 - answerResults의 모든 improvements 합치기 */}
+            {(() => {
+              const allImprovements = answerResults
+                .flatMap(r => r?.improvements || [])
+                .filter((s, idx, arr) => arr.indexOf(s) === idx); // 중복 제거
+              
+              return allImprovements.length > 0 || (analysisResult?.improvements && analysisResult.improvements.length > 0) ? (
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-blue-100 rounded-full mt-1">
+                      <Target className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <p className="text-blue-700 font-medium">🎯 개선 포인트</p>
+                      <ul className="text-gray-700 leading-relaxed space-y-1">
+                        {(allImprovements.length > 0 ? allImprovements : analysisResult?.improvements || []).map((improvement: string, idx: number) => (
+                          <li key={idx}>• {improvement}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
-            {/* 위험 요소 */}
-            {analysisResult?.risks && analysisResult.risks.length > 0 && (
-              <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-yellow-100 rounded-full mt-1">
-                    <MessageCircle className="w-4 h-4 text-yellow-600" />
-                  </div>
-                  <div className="space-y-2 flex-1">
-                    <p className="text-yellow-700 font-medium">⚠️ 주의 사항</p>
-                    <ul className="text-gray-700 leading-relaxed space-y-1">
-                      {analysisResult.risks.map((risk: string, idx: number) => (
-                        <li key={idx}>• {risk}</li>
-                      ))}
-                    </ul>
+            {/* 위험 요소 - answerResults의 모든 risks 합치기 */}
+            {(() => {
+              const allRisks = answerResults
+                .flatMap(r => r?.risks || [])
+                .filter((s, idx, arr) => arr.indexOf(s) === idx); // 중복 제거
+              
+              return allRisks.length > 0 || (analysisResult?.risks && analysisResult.risks.length > 0) ? (
+                <div className="bg-white/70 p-4 rounded-lg border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-yellow-100 rounded-full mt-1">
+                      <MessageCircle className="w-4 h-4 text-yellow-600" />
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <p className="text-yellow-700 font-medium">⚠️ 주의 사항</p>
+                      <ul className="text-gray-700 leading-relaxed space-y-1">
+                        {(allRisks.length > 0 ? allRisks : analysisResult?.risks || []).map((risk: string, idx: number) => (
+                          <li key={idx}>• {risk}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
             {/* 분석 결과가 없을 때 */}
-            {!analysisResult && (
+            {answerResults.length === 0 && !analysisResult && (
               <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-center">
-                <p className="text-yellow-800">AI 분석 결과를 불러오는 중입니다...</p>
+                <p className="text-yellow-800">
+                  AI 분석 결과를 불러오는 중입니다...
+                </p>
               </div>
             )}
           </CardContent>
