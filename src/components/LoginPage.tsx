@@ -27,9 +27,8 @@ interface LoginPageProps {
 
 export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const handleGoogleLogin = () => {
-  console.log("구글 로그인 시도 → 구글 페이지로 이동");
-  window.location.href = GOOGLE_AUTH_URL;   // 🔥 fetch 절대 X
-};
+    window.location.href = `${API_BASE_URL}/oauth2/authorization/google`;
+  };
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4">
